@@ -4,7 +4,7 @@ An AI-powered executive assistant that triages a CEO's morning communications ac
 
 ## How It Works
 
-1. **Load messages** — The app ships with 20 sample messages, or upload your own JSON file
+1. **Load messages** — The app uploads your JSON file
 2. **Run triage** — Claude analyzes every message and classifies it as:
    - **Decide** — requires the CEO's personal attention, with a drafted response
    - **Delegate** — can be handled by someone else, with a drafted handoff
@@ -42,7 +42,6 @@ Then open [http://localhost:5173](http://localhost:5173) and click **Run Triage*
 │       ├── StatsBar       # Summary stats (decide/delegate/ignore/critical counts)
 │       ├── MessageCard    # Expandable message card with triage details and draft response
 │       └── FlagsPanel     # Risk flags with severity and related messages
-├── MessagesJSON.json      # Sample input data (20 messages)
 └── package.json
 ```
 
@@ -52,7 +51,6 @@ Then open [http://localhost:5173](http://localhost:5173) and click **Run Triage*
 
 | Method | Path           | Description                          |
 |--------|----------------|--------------------------------------|
-| GET    | `/api/messages`| Returns the default sample messages  |
 | POST   | `/api/triage`  | Sends messages to Claude for triage  |
 | POST   | `/api/upload`  | Accepts a JSON file with new messages|
 
