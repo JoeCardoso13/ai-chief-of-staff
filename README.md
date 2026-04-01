@@ -14,6 +14,11 @@ An AI-powered executive assistant that triages a CEO's morning communications ac
    - **Triage** — every message with its classification, urgency, reasoning, and draft response
    - **Flags** — risks, conflicts, and things the CEO should know about
 
+## Prerequisites
+
+- [Node.js](https://nodejs.org/) v18+
+- An [Anthropic API key](https://console.anthropic.com/) — this app uses Claude as its LLM provider
+
 ## Quick Start
 
 ```bash
