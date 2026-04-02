@@ -1,0 +1,43 @@
+[
+  {
+    "id": 1,
+    "channel": "email",
+    "from": "Sarah Chen, CFO",
+    "to": "CEO",
+    "subject": "Q2 Revenue Report - Board Review Needed",
+    "timestamp": "2026-04-02T08:12:00Z",
+    "body": "Hi,\n\nThe Q2 revenue report is ready for your review. We're tracking 12% above projections, driven largely by the enterprise segment. However, I want to flag that the APAC region underperformed by 8%.\n\nThe board meeting is at 2pm today — I need your comments by noon so I can incorporate them into the final deck.\n\nKey highlights:\n- Total revenue: $47.2M (vs $42.1M projected)\n- Enterprise: +23% YoY\n- APAC: -8% vs plan\n- Cash runway: 18 months\n\nLet me know if you want to discuss before the meeting.\n\nBest,\nSarah"
+  },
+  {
+    "id": 2,
+    "channel": "slack",
+    "from": "Marcus Rivera",
+    "channel_name": "#engineering",
+    "timestamp": "2026-04-02T07:45:00Z",
+    "body": "🚨 Production alert: API latency spiked to 4.2s (normal is <200ms). The team is investigating. Looks like the new caching layer might be the culprit. Will update in 30 mins."
+  },
+  {
+    "id": 3,
+    "channel": "whatsapp",
+    "from": "David Park, Investor",
+    "timestamp": "2026-04-02T09:01:00Z",
+    "body": "Hey, quick question — I heard from another portfolio company that you're exploring an acquisition. Is that true? Would love to chat before anything gets announced. Free for a call today?"
+  },
+  {
+    "id": 4,
+    "channel": "email",
+    "from": "newsletter@techdigest.com",
+    "to": "CEO",
+    "subject": "This Week in AI: GPT-5 Rumors, EU Regulation Updates",
+    "timestamp": "2026-04-02T06:00:00Z",
+    "body": "Welcome to this week's Tech Digest newsletter.\n\n1. GPT-5 rumors intensify as OpenAI schedules mysterious press event\n2. EU AI Act enforcement begins July 2026\n3. Startup funding rebounds: Q1 2026 sees 34% increase in seed rounds\n\nRead more at techdigest.com"
+  },
+  {
+    "id": 5,
+    "channel": "slack",
+    "from": "Lisa Wong, VP Sales",
+    "channel_name": "#deals",
+    "timestamp": "2026-04-02T08:30:00Z",
+    "body": "Great news! Acme Corp just signed the $2.4M annual contract. That puts us at 108% of Q2 target with 3 weeks left. The team is celebrating but I want to keep pushing — we have a shot at breaking the quarterly record if we close the Zenith deal this week."
+  }
+]

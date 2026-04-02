@@ -1,0 +1,73 @@
+[
+  {
+    "id": 1,
+    "channel": "email",
+    "from": "empty-body@test.com",
+    "timestamp": "2026-04-02T09:00:00Z",
+    "body": ""
+  },
+  {
+    "id": 2,
+    "channel": "email",
+    "from": "arabic-rtl@test.com",
+    "timestamp": "2026-04-02T09:00:00Z",
+    "body": "\u200Fمرحبا بالعالم - هذه رسالة باللغة العربية"
+  },
+  {
+    "id": 3,
+    "channel": "email",
+    "from": "emoji@test.com",
+    "timestamp": "2026-04-02T09:00:00Z",
+    "body": "😀😂🤣🎉🚀💻🔥👍❤️✨ All the emojis! 🇺🇸🇬🇧🇯🇵"
+  },
+  {
+    "id": 4,
+    "channel": "email",
+    "from": "whitespace@test.com",
+    "timestamp": "2026-04-02T09:00:00Z",
+    "body": "line1\nline2\n\nline4\ttab\r\nwindows-newline"
+  },
+  {
+    "id": 5,
+    "channel": "email",
+    "from": "zero-width@test.com",
+    "timestamp": "2026-04-02T09:00:00Z",
+    "body": "zero\u200Bwidth\u200Bjoiner\u200Bcharacters\u200Beverywhere"
+  },
+  {
+    "id": 6,
+    "channel": "email",
+    "from": "empty-subject@test.com",
+    "subject": "",
+    "timestamp": "2026-04-02T09:00:00Z",
+    "body": "Message with empty string subject (not missing, but empty)"
+  },
+  {
+    "id": 7,
+    "channel": "email",
+    "from": "epoch@test.com",
+    "timestamp": "1970-01-01T00:00:00Z",
+    "body": "Message from the Unix epoch"
+  },
+  {
+    "id": 8,
+    "channel": "email",
+    "from": "far-future@test.com",
+    "timestamp": "9999-12-31T23:59:59Z",
+    "body": "Message from the distant future"
+  },
+  {
+    "id": 9,
+    "channel": "email",
+    "from": "chinese@test.com",
+    "timestamp": "2026-04-02T09:00:00Z",
+    "body": "你好世界！这是一条中文消息。请尽快处理。"
+  },
+  {
+    "id": 10,
+    "channel": "email",
+    "from": "mixed-scripts@test.com",
+    "timestamp": "2026-04-02T09:00:00Z",
+    "body": "Hello مرحبا こんにちは 你好 Привет"
+  }
+]

@@ -1,0 +1,58 @@
+[
+  {
+    "id": 1,
+    "channel": "email",
+    "from": "<script>alert('xss')</script>",
+    "subject": "<img src=x onerror=\"alert('xss')\">",
+    "timestamp": "2026-04-02T09:00:00Z",
+    "body": "Normal message body with XSS in sender name"
+  },
+  {
+    "id": 2,
+    "channel": "email",
+    "from": "attacker",
+    "timestamp": "2026-04-02T09:00:00Z",
+    "body": "{{constructor.constructor('return this')()}}"
+  },
+  {
+    "id": 3,
+    "channel": "email",
+    "from": "sql-injector",
+    "timestamp": "2026-04-02T09:00:00Z",
+    "body": "'; DROP TABLE messages; --"
+  },
+  {
+    "id": 4
+  },
+  {
+    "id": "not-a-number",
+    "channel": 42,
+    "from": null,
+    "timestamp": false,
+    "body": 0
+  },
+  "not an object at all",
+  null,
+  {
+    "id": 6,
+    "channel": "unknown_channel",
+    "from": "mysterious sender",
+    "timestamp": "invalid-date-string",
+    "body": "message from unknown channel with bad timestamp"
+  },
+  {
+    "id": 7,
+    "channel": "email",
+    "from": "a",
+    "timestamp": "2026-04-02T09:00:00Z",
+    "body": ""
+  },
+  {
+    "id": 8,
+    "channel": "email",
+    "from": "repeat",
+    "timestamp": "2026-04-02T09:00:00Z",
+    "subject": "A very long subject line that goes on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on and on",
+    "body": "Message with an absurdly long subject"
+  }
+]

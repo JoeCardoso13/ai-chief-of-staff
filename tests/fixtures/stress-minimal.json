@@ -1,0 +1,9 @@
+[
+  {
+    "id": 1,
+    "channel": "email",
+    "from": "someone@example.com",
+    "timestamp": "2026-04-02T09:00:00Z",
+    "body": "Hi"
+  }
+]

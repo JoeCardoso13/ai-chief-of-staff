@@ -1,0 +1,49 @@
+[
+  {
+    "id": 1,
+    "channel": "email",
+    "from": "Alice",
+    "subject": "Horizon Project Update",
+    "timestamp": "2026-04-02T08:00:00Z",
+    "body": "The Horizon project is on track. All milestones met, delivery expected by end of month."
+  },
+  {
+    "id": 1,
+    "channel": "slack",
+    "from": "Bob",
+    "channel_name": "#horizon",
+    "timestamp": "2026-04-02T08:30:00Z",
+    "body": "Heads up — Horizon is NOT on track. We're at least 3 weeks behind schedule. The backend migration hit unexpected issues."
+  },
+  {
+    "id": 2,
+    "channel": "email",
+    "from": "Carol",
+    "subject": "Meeting at 2pm",
+    "timestamp": "2026-04-02T09:00:00Z",
+    "body": "Reminder: board meeting at 2pm today. Please join the conference room on Floor 3."
+  },
+  {
+    "id": 2,
+    "channel": "email",
+    "from": "Dave",
+    "subject": "Meeting at 3pm",
+    "timestamp": "2026-04-02T09:15:00Z",
+    "body": "Don't forget our client presentation at 3pm today. This is the make-or-break pitch for the Zenith deal."
+  },
+  {
+    "id": 3,
+    "channel": "email",
+    "from": "Eve",
+    "subject": "Yesterday's urgent issue",
+    "timestamp": "2026-04-01T09:00:00Z",
+    "body": "This message is from yesterday — it should be lower priority since it's stale."
+  },
+  {
+    "id": 4,
+    "channel": "whatsapp",
+    "from": "Frank",
+    "timestamp": "2026-04-03T09:00:00Z",
+    "body": "This message is dated tomorrow — a future timestamp that shouldn't normally exist."
+  }
+]
