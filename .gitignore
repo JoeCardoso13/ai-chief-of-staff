@@ -1,6 +1,28 @@
 node_modules/
+
+# Build output
 dist/
 dist-server/
+
+# Test output
+coverage/
+
+# Environment files
 .env
+.env.*
+!.env.example
+!.env.*.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS/editor noise
+.DS_Store
+
+# Local tooling
 .claude/
 .codex

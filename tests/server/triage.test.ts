@@ -275,6 +275,17 @@ describe("POST /api/triage", () => {
       expect(res.body.error).toBeDefined();
     });
 
+    test("falls back to generic internal server error when thrown value has no message", async () => {
+      app = createApp(createFailingAnthropic({} as Error));
+
+      const res = await request(app)
+        .post("/api/triage")
+        .send({ messages: [makeMessage()] })
+        .expect(500);
+
+      expect(res.body.error).toBe("Internal server error");
+    });
+
     test("handles empty response content from Claude", async () => {
       const mockAnthropic = {
         messages: {

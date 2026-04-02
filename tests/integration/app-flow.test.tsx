@@ -67,6 +67,18 @@ describe("App flow", () => {
   });
 
   describe("file upload flow", () => {
+    test("Upload JSON button forwards click to hidden file input", () => {
+      render(<App />);
+      const fileInput = document.querySelector(
+        'input[type="file"]'
+      ) as HTMLInputElement;
+      const clickSpy = vi.spyOn(fileInput, "click");
+
+      fireEvent.click(screen.getByText("Upload JSON"));
+
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+    });
+
     test("uploading a file updates message count", async () => {
       render(<App />);
       const messages = [makeMessage({ id: 1 }), makeMessage({ id: 2 })];
@@ -88,6 +100,53 @@ describe("App flow", () => {
       await waitFor(() => {
         expect(screen.getByText("2 messages loaded")).toBeInTheDocument();
       });
+    });
+
+    test("selecting no file is a no-op", async () => {
+      render(<App />);
+
+      const fileInput = document.querySelector(
+        'input[type="file"]'
+      ) as HTMLInputElement;
+
+      await act(async () => {
+        fireEvent.change(fileInput, { target: { files: [] } });
+      });
+
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(screen.getByText("0 messages loaded")).toBeInTheDocument();
+    });
+
+    test("upload cleanup tolerates component unmount before request completes", async () => {
+      let resolveUpload!: (value: any) => void;
+      mockFetch.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveUpload = resolve;
+        })
+      );
+
+      const { unmount } = render(<App />);
+      const fileInput = document.querySelector(
+        'input[type="file"]'
+      ) as HTMLInputElement;
+      const file = new File(["[]"], "messages.json", {
+        type: "application/json",
+      });
+
+      await act(async () => {
+        fireEvent.change(fileInput, { target: { files: [file] } });
+      });
+
+      unmount();
+
+      await act(async () => {
+        resolveUpload({
+          ok: true,
+          json: () => Promise.resolve({ messages: [] }),
+        });
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
     test("uploading clears previous triage result", async () => {
@@ -210,6 +269,43 @@ describe("App flow", () => {
       await waitFor(() => {
         expect(
           screen.getByText("Failed to parse AI response")
+        ).toBeInTheDocument();
+      });
+    });
+
+    test("triage error falls back to default message when API omits error text", async () => {
+      render(<App />);
+
+      mockUploadSuccess([makeMessage()]);
+      const fileInput = document.querySelector(
+        'input[type="file"]'
+      ) as HTMLInputElement;
+      await act(async () => {
+        fireEvent.change(fileInput, {
+          target: {
+            files: [
+              new File(["[]"], "m.json", { type: "application/json" }),
+            ],
+          },
+        });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("1 messages loaded")).toBeInTheDocument();
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({}),
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("Run Triage"));
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Failed to triage messages")
         ).toBeInTheDocument();
       });
     });
@@ -371,6 +467,66 @@ describe("App flow", () => {
       expect(screen.getByText("Decide (1)")).toBeInTheDocument();
       expect(screen.getByText("Delegate (1)")).toBeInTheDocument();
       expect(screen.getByText("Ignore (1)")).toBeInTheDocument();
+    });
+
+    test("clicking a filter pill narrows the visible message cards", async () => {
+      await setupTriageTab();
+
+      fireEvent.click(screen.getByText("Delegate (1)"));
+
+      expect(screen.getByText("VP can handle")).toBeInTheDocument();
+      expect(screen.queryByText("CEO must act")).not.toBeInTheDocument();
+      expect(screen.queryByText("Newsletter spam")).not.toBeInTheDocument();
+    });
+
+    test("triage tab skips entries whose source message cannot be found", async () => {
+      render(<App />);
+      const messages = [makeMessage({ id: 1 })];
+      mockUploadSuccess(messages);
+      const fileInput = document.querySelector(
+        'input[type="file"]'
+      ) as HTMLInputElement;
+      await act(async () => {
+        fireEvent.change(fileInput, {
+          target: {
+            files: [
+              new File([JSON.stringify(messages)], "m.json", {
+                type: "application/json",
+              }),
+            ],
+          },
+        });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("1 messages loaded")).toBeInTheDocument();
+      });
+
+      mockTriageSuccess(
+        makeTriageResponse({
+          triagedMessages: [
+            {
+              messageId: 999,
+              category: "decide",
+              reason: "Missing local message",
+              urgency: "high",
+              draftResponse: "N/A",
+            },
+          ],
+        })
+      );
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("Run Triage"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Top Priority")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText("Triage"));
+
+      expect(screen.queryByText("Missing local message")).not.toBeInTheDocument();
     });
   });
 });
