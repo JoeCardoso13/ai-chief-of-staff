@@ -60,41 +60,37 @@ describe("POST /api/triage", () => {
       expect(res.body.error).toBe("messages array is required");
     });
 
-    // BUG: No per-element validation — any non-empty array passes through
-    test("BUG: accepts array of empty objects (no field validation)", async () => {
+    // Per-element message validation should reject malformed message entries.
+    test("rejects array of empty objects (field validation)", async () => {
       const mockAnthropic = createMockAnthropic(validResponseJson());
       app = createApp(mockAnthropic);
 
-      await request(app).post("/api/triage").send({ messages: [{}] }).expect(200);
-
-      // The empty object was sent directly to Claude with no validation
-      expect(mockAnthropic.messages.create).toHaveBeenCalled();
-      const callArgs = (mockAnthropic.messages.create as any).mock.calls[0][0];
-      expect(callArgs.messages[0].content).toContain("{}");
+      await request(app).post("/api/triage").send({ messages: [{}] }).expect(400);
+      expect(mockAnthropic.messages.create).not.toHaveBeenCalled();
     });
 
-    test("BUG: accepts array of wrong types (no element type checking)", async () => {
+    test("rejects array of wrong element types", async () => {
       const mockAnthropic = createMockAnthropic(validResponseJson());
       app = createApp(mockAnthropic);
 
       await request(app)
         .post("/api/triage")
         .send({ messages: [1, "x", null] })
-        .expect(200);
+        .expect(400);
 
-      expect(mockAnthropic.messages.create).toHaveBeenCalled();
+      expect(mockAnthropic.messages.create).not.toHaveBeenCalled();
     });
 
-    test("BUG: accepts messages with missing required fields", async () => {
+    test("rejects messages with missing required fields", async () => {
       const mockAnthropic = createMockAnthropic(validResponseJson());
       app = createApp(mockAnthropic);
 
       await request(app)
         .post("/api/triage")
         .send({ messages: [{ id: 1 }] }) // missing channel, from, body, timestamp
-        .expect(200);
+        .expect(400);
 
-      expect(mockAnthropic.messages.create).toHaveBeenCalled();
+      expect(mockAnthropic.messages.create).not.toHaveBeenCalled();
     });
   });
 
@@ -167,22 +163,20 @@ describe("POST /api/triage", () => {
     });
   });
 
-  describe("BUG: no schema validation on Claude response", () => {
-    test("BUG: arbitrary JSON object returned as-is to client", async () => {
+  describe("response schema validation", () => {
+    test("rejects arbitrary JSON object that does not match triage schema", async () => {
       // Claude returns completely wrong schema — app doesn't validate
       app = createApp(createMockAnthropic('{"foo":"bar","baz":42}'));
 
       const res = await request(app)
         .post("/api/triage")
         .send({ messages: [makeMessage()] })
-        .expect(200);
+        .expect(500);
 
-      // The nonsense response is forwarded directly to the client
-      expect(res.body).toEqual({ foo: "bar", baz: 42 });
-      expect(res.body.triagedMessages).toBeUndefined();
+      expect(res.body.error).toBeDefined();
     });
 
-    test("BUG: extra unexpected fields in response forwarded to client", async () => {
+    test("strips unexpected fields from AI response before returning to client", async () => {
       const response = {
         ...makeTriageResponse(),
         maliciousField: "injected data",
@@ -195,20 +189,22 @@ describe("POST /api/triage", () => {
         .send({ messages: [makeMessage()] })
         .expect(200);
 
-      expect(res.body.maliciousField).toBe("injected data");
+      expect(res.body.maliciousField).toBeUndefined();
+      expect(res.body.triagedMessages).toBeDefined();
+      expect(res.body.flags).toBeDefined();
+      expect(res.body.briefing).toBeDefined();
     });
 
-    test("BUG: empty triagedMessages array accepted without warning", async () => {
+    test("rejects AI response when triagedMessages is empty for non-empty input", async () => {
       const response = makeTriageResponse({ triagedMessages: [] });
       app = createApp(createMockAnthropic(JSON.stringify(response)));
 
       const res = await request(app)
         .post("/api/triage")
         .send({ messages: [makeMessage()] })
-        .expect(200);
+        .expect(500);
 
-      // Sent 1 message but got 0 triaged — no validation catches this
-      expect(res.body.triagedMessages).toHaveLength(0);
+      expect(res.body.error).toBeDefined();
     });
   });
 
@@ -238,7 +234,7 @@ describe("POST /api/triage", () => {
       expect(res.body.error).toBeDefined();
     });
 
-    test("BUG: error.message from Anthropic SDK leaks to client", async () => {
+    test("error message returned to client does not leak sensitive API key content", async () => {
       const sensitiveError = new Error(
         "Authentication failed for API key sk-ant-api03-FAKE_KEY_HERE"
       );
@@ -249,8 +245,8 @@ describe("POST /api/triage", () => {
         .send({ messages: [makeMessage()] })
         .expect(500);
 
-      // The raw error message containing the API key is sent to the client
-      expect(res.body.error).toContain("sk-ant-api03-FAKE_KEY_HERE");
+      expect(res.body.error).toBeDefined();
+      expect(res.body.error).not.toContain("sk-ant-api03-FAKE_KEY_HERE");
     });
 
     test("handles Anthropic rate limit error", async () => {

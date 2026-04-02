@@ -89,24 +89,15 @@ describe("BriefingView", () => {
       expect(screen.getByText("No conflicts detected")).toBeInTheDocument();
     });
 
-    test("BUG: empty keyDecisions renders empty list (no empty state message)", () => {
-      const { container } = render(
+    test("empty keyDecisions shows fallback message", () => {
+      render(
         <BriefingView
           briefing={makeBriefing({ keyDecisions: [] })}
         />
       );
-      // BUG: Unlike scheduleConflicts which shows "No conflicts detected",
-      // empty keyDecisions renders an empty <ul> with no items and no fallback message.
-      // The "Decisions Needed" heading is still shown, but the list is empty.
       expect(screen.getByText("Decisions Needed")).toBeInTheDocument();
 
-      // The <ul> exists but has no <li> children
-      const ul = container.querySelector("ul");
-      expect(ul).toBeTruthy();
-      expect(ul!.children).toHaveLength(0);
-
-      // No "no decisions needed" or similar fallback message
-      expect(screen.queryByText(/no decisions/i)).not.toBeInTheDocument();
+      expect(screen.getByText(/no decisions needed/i)).toBeInTheDocument();
     });
 
     test("empty topPriority renders blank banner", () => {

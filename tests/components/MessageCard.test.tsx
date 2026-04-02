@@ -306,8 +306,8 @@ describe("MessageCard", () => {
     });
   });
 
-  describe("BUG: edge cases", () => {
-    test("BUG: 'Draft Handoff to undefined' when delegateTo is missing", () => {
+  describe("regression: edge cases", () => {
+    test("delegate handoff label does not render 'undefined' when delegateTo is missing", () => {
       render(
         <MessageCard
           message={makeMessage()}
@@ -320,23 +320,21 @@ describe("MessageCard", () => {
       );
       const header = screen.getByText("Alice Johnson").closest("div[class*='cursor-pointer']")!;
       fireEvent.click(header);
-      // BUG: Line 160 of MessageCard.tsx uses template literal:
-      // `Draft Handoff to ${triage.delegateTo}` — when delegateTo is undefined,
-      // this renders "Draft Handoff to undefined" instead of just "Draft Handoff"
+      expect(screen.getByText(/Draft Handoff/)).toBeInTheDocument();
       expect(
-        screen.getByText(/Draft Handoff to undefined/)
-      ).toBeInTheDocument();
+        screen.queryByText(/Draft Handoff to undefined/)
+      ).not.toBeInTheDocument();
     });
 
-    test("BUG: invalid timestamp renders 'Invalid Date'", () => {
+    test("invalid timestamp does not render 'Invalid Date' to the user", () => {
       render(
         <MessageCard
           message={makeMessage({ timestamp: "not-a-valid-date" })}
           triage={makeTriagedMessage()}
         />
       );
-      // BUG: new Date("not-a-valid-date").toLocaleTimeString() returns "Invalid Date"
-      expect(screen.getByText("Invalid Date")).toBeInTheDocument();
+      expect(screen.queryByText("Invalid Date")).not.toBeInTheDocument();
+      expect(screen.getByText("Alice Johnson")).toBeInTheDocument();
     });
 
     test("renders very long message body without crashing", () => {

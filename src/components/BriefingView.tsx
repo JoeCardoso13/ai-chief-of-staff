@@ -74,16 +74,20 @@ export function BriefingView({ briefing }: Props) {
             </svg>
             Decisions Needed
           </h4>
-          <ul className="space-y-2">
-            {briefing.keyDecisions.map((decision, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm">
-                <span className="w-5 h-5 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
-                  {i + 1}
-                </span>
-                <span className="text-gray-700">{decision}</span>
-              </li>
-            ))}
-          </ul>
+          {briefing.keyDecisions.length === 0 ? (
+            <p className="text-sm text-gray-500">No decisions needed</p>
+          ) : (
+            <ul className="space-y-2">
+              {briefing.keyDecisions.map((decision, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm">
+                  <span className="w-5 h-5 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                    {i + 1}
+                  </span>
+                  <span className="text-gray-700">{decision}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {/* Schedule Conflicts */}

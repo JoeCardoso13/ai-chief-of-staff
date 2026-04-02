@@ -1,17 +1,5 @@
 import { describe, test, expect } from "vitest";
-
-/**
- * Tests for the JSON extraction regex used in server/app.ts
- * to parse Claude's response text.
- *
- * The regex chain is:
- *   text.match(/```json\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*\})/)
- */
-function extractJson(text: string): string | null {
-  const match =
-    text.match(/```json\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*\})/);
-  return match ? match[1] : null;
-}
+import { extractJson } from "../../server/app.ts";
 
 describe("JSON extraction regex", () => {
   describe("markdown code block extraction", () => {
@@ -59,32 +47,25 @@ describe("JSON extraction regex", () => {
     });
   });
 
-  describe("BUG: greedy regex edge cases", () => {
-    test("BUG: multiple JSON objects — greedy regex matches entire span", () => {
+  describe("greedy regex edge cases", () => {
+    test("multiple JSON objects: extractor selects a single valid JSON object", () => {
       const input = '{"a":1} some text {"b":2}';
       const result = extractJson(input);
-      // The greedy regex /(\{[\s\S]*\})/ matches from first { to last }
-      // capturing everything in between, including "some text"
-      expect(result).toBe('{"a":1} some text {"b":2}');
-      // This is NOT valid JSON — JSON.parse would fail
-      expect(() => JSON.parse(result!)).toThrow();
+      expect(() => JSON.parse(result!)).not.toThrow();
+      expect(JSON.parse(result!)).toEqual({ a: 1 });
     });
 
-    test("BUG: braces in prose cause incorrect match", () => {
+    test("braces in prose do not contaminate extracted JSON", () => {
       const input = 'The set {1,2,3} is valid. {"actual":"json"}';
       const result = extractJson(input);
-      // Greedy regex matches from {1,2,3} all the way to {"actual":"json"}
-      expect(result).toBe('{1,2,3} is valid. {"actual":"json"}');
-      expect(() => JSON.parse(result!)).toThrow();
+      expect(JSON.parse(result!)).toEqual({ actual: "json" });
     });
 
-    test("BUG: Claude explanatory text with curly braces breaks extraction", () => {
+    test("Claude explanatory text with curly braces does not break extraction", () => {
       const input =
         'I used the format {key: value} as requested. Here is the analysis: {"triagedMessages":[]}';
       const result = extractJson(input);
-      // Greedy match spans from {key: value} to the end
-      expect(result).toContain("{key: value}");
-      expect(() => JSON.parse(result!)).toThrow();
+      expect(JSON.parse(result!)).toEqual({ triagedMessages: [] });
     });
   });
 

@@ -47,10 +47,19 @@ export function MessageCard({ message, triage }: Props) {
   const [expanded, setExpanded] = useState(false);
   const cat = categoryConfig[triage.category];
   const urg = urgencyConfig[triage.urgency];
-  const time = new Date(message.timestamp).toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  const parsedDate = new Date(message.timestamp);
+  const time = Number.isNaN(parsedDate.getTime())
+    ? ""
+    : parsedDate.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+  const draftLabel =
+    triage.category === "delegate"
+      ? triage.delegateTo
+        ? `Draft Handoff to ${triage.delegateTo}`
+        : "Draft Handoff"
+      : "Draft Response";
 
   return (
     <div
@@ -95,9 +104,11 @@ export function MessageCard({ message, triage }: Props) {
                 {message.channel_name}
               </span>
             )}
-            <span className="text-xs text-gray-400 ml-auto flex-shrink-0">
-              {time}
-            </span>
+            {time && (
+              <span className="text-xs text-gray-400 ml-auto flex-shrink-0">
+                {time}
+              </span>
+            )}
           </div>
           {message.subject && (
             <p className="text-sm font-medium text-gray-700 mb-1">
@@ -156,9 +167,7 @@ export function MessageCard({ message, triage }: Props) {
           {triage.draftResponse && (
             <div className="px-4 py-3">
               <p className="text-xs font-medium text-brand-600 uppercase tracking-wider mb-2">
-                {triage.category === "delegate"
-                  ? `Draft Handoff to ${triage.delegateTo}`
-                  : "Draft Response"}
+                {draftLabel}
               </p>
               <div className="bg-brand-50/50 rounded-lg p-3 border border-brand-100">
                 <p className="text-sm text-gray-800 whitespace-pre-wrap">

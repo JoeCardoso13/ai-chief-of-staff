@@ -122,8 +122,8 @@ describe("POST /api/upload", () => {
     });
   });
 
-  describe("BUG: no element validation", () => {
-    test("BUG: accepts array of primitives as valid messages", async () => {
+  describe("element validation", () => {
+    test("rejects array of primitives as invalid messages", async () => {
       const res = await request(app)
         .post("/api/upload")
         .attach(
@@ -131,13 +131,12 @@ describe("POST /api/upload", () => {
           Buffer.from('[1, "two", null, true]'),
           "primitives.json"
         )
-        .expect(200);
+        .expect(400);
 
-      // These aren't valid Message objects but pass through without validation
-      expect(res.body.messages).toEqual([1, "two", null, true]);
+      expect(res.body.error).toBeDefined();
     });
 
-    test("BUG: accepts array with missing required fields", async () => {
+    test("rejects array with missing required fields", async () => {
       const res = await request(app)
         .post("/api/upload")
         .attach(
@@ -145,13 +144,12 @@ describe("POST /api/upload", () => {
           Buffer.from('[{"id": 1}, {"random": "data"}]'),
           "partial.json"
         )
-        .expect(200);
+        .expect(400);
 
-      // Messages with missing fields pass through
-      expect(res.body.messages).toHaveLength(2);
+      expect(res.body.error).toBeDefined();
     });
 
-    test("BUG: accepts messages with wrong field types", async () => {
+    test("rejects messages with wrong field types", async () => {
       const badMessage = {
         id: "not-a-number",
         channel: 42,
@@ -166,14 +164,14 @@ describe("POST /api/upload", () => {
           Buffer.from(JSON.stringify([badMessage])),
           "wrong-types.json"
         )
-        .expect(200);
+        .expect(400);
 
-      expect(res.body.messages[0].id).toBe("not-a-number");
+      expect(res.body.error).toBeDefined();
     });
   });
 
   describe("file handling edge cases", () => {
-    test("BUG: accepts any file extension (no mimetype check)", async () => {
+    test("rejects non-JSON file extensions", async () => {
       const res = await request(app)
         .post("/api/upload")
         .attach(
@@ -181,10 +179,9 @@ describe("POST /api/upload", () => {
           Buffer.from(JSON.stringify([makeMessage()])),
           "data.exe"
         )
-        .expect(200);
+        .expect(400);
 
-      // .exe file accepted as long as content is valid JSON
-      expect(res.body.messages).toHaveLength(1);
+      expect(res.body.error).toBeDefined();
     });
 
     test("handles UTF-8 content correctly", async () => {

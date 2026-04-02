@@ -2,8 +2,131 @@ import cors from "cors";
 import express from "express";
 import multer from "multer";
 import type Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 
 const upload = multer({ storage: multer.memoryStorage() });
+
+const MessageSchema = z.object({
+  id: z.number(),
+  channel: z.enum(["email", "slack", "whatsapp"]),
+  from: z.string(),
+  to: z.string().optional(),
+  subject: z.string().optional(),
+  channel_name: z.string().optional(),
+  timestamp: z.string(),
+  body: z.string(),
+});
+
+const TriagedMessageSchema = z.object({
+  messageId: z.number(),
+  category: z.enum(["ignore", "delegate", "decide"]),
+  reason: z.string(),
+  delegateTo: z.string().optional(),
+  draftResponse: z.string().optional(),
+  urgency: z.enum(["low", "medium", "high", "critical"]),
+});
+
+const FlagSchema = z.object({
+  title: z.string(),
+  description: z.string(),
+  relatedMessageIds: z.array(z.number()),
+  severity: z.enum(["info", "warning", "critical"]),
+});
+
+const BriefingSchema = z.object({
+  summary: z.string(),
+  keyDecisions: z.array(z.string()),
+  scheduleConflicts: z.array(z.string()),
+  topPriority: z.string(),
+});
+
+const TriageResponseSchema = z.object({
+  triagedMessages: z.array(TriagedMessageSchema),
+  flags: z.array(FlagSchema),
+  briefing: BriefingSchema,
+});
+
+function hasDuplicateMessageIds(messages: Array<{ id: number }>) {
+  const ids = new Set<number>();
+  for (const message of messages) {
+    if (ids.has(message.id)) return true;
+    ids.add(message.id);
+  }
+  return false;
+}
+
+function sanitizeErrorMessage(message: string) {
+  return message.replace(/sk-[A-Za-z0-9_-]+/g, "[redacted-api-key]");
+}
+
+function extractFirstJsonObject(text: string): string | null {
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+
+    if (start === -1) {
+      if (char === "{") {
+        start = i;
+        depth = 1;
+        inString = false;
+        escaped = false;
+      }
+      continue;
+    }
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      continue;
+    }
+
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+
+    if (char !== "}") continue;
+
+    depth -= 1;
+    if (depth !== 0) continue;
+
+    const candidate = text.slice(start, i + 1);
+    try {
+      JSON.parse(candidate);
+      return candidate;
+    } catch {
+      start = -1;
+      depth = 0;
+      inString = false;
+      escaped = false;
+    }
+  }
+
+  return null;
+}
+
+export function extractJson(text: string): string | null {
+  const codeBlockMatch = text.match(/```json\s*([\s\S]*?)```/i);
+  if (codeBlockMatch) {
+    return codeBlockMatch[1];
+  }
+
+  return extractFirstJsonObject(text);
+}
 
 export const SYSTEM_PROMPT = `You are an AI Chief of Staff for a CEO. You receive a batch of incoming messages from a single morning across email, Slack, and WhatsApp.
 
@@ -69,9 +192,21 @@ export function createApp(anthropic: Anthropic) {
 
   app.post("/api/triage", async (req, res) => {
     try {
-      const messages = req.body.messages;
-      if (!Array.isArray(messages) || messages.length === 0) {
+      const messagesInput = req.body.messages;
+      if (!Array.isArray(messagesInput) || messagesInput.length === 0) {
         res.status(400).json({ error: "messages array is required" });
+        return;
+      }
+
+      const parsedMessages = z.array(MessageSchema).safeParse(messagesInput);
+      if (!parsedMessages.success) {
+        res.status(400).json({ error: "Invalid message payload" });
+        return;
+      }
+
+      const messages = parsedMessages.data;
+      if (hasDuplicateMessageIds(messages)) {
+        res.status(400).json({ error: "Duplicate message ids are not allowed" });
         return;
       }
 
@@ -94,21 +229,32 @@ export function createApp(anthropic: Anthropic) {
         .map((block) => block.text)
         .join("");
 
-      // Extract JSON from response (handle markdown code blocks)
-      const jsonMatch =
-        text.match(/```json\s*([\s\S]*?)```/) ||
-        text.match(/(\{[\s\S]*\})/);
-      if (!jsonMatch) {
+      const extractedJson = extractJson(text);
+      if (!extractedJson) {
         res.status(500).json({ error: "Failed to parse AI response" });
         return;
       }
 
-      const result = JSON.parse(jsonMatch[1]);
-      res.json(result);
+      const parsedResponse = TriageResponseSchema.safeParse(
+        JSON.parse(extractedJson)
+      );
+      if (!parsedResponse.success) {
+        res.status(500).json({ error: "Invalid AI response schema" });
+        return;
+      }
+
+      if (messages.length > 0 && parsedResponse.data.triagedMessages.length === 0) {
+        res.status(500).json({ error: "Invalid AI response schema" });
+        return;
+      }
+
+      res.json(parsedResponse.data);
     } catch (error: any) {
       console.error("Triage error:", error);
       res.status(500).json({
-        error: error.message || "Internal server error",
+        error: sanitizeErrorMessage(
+          error?.message || "Internal server error"
+        ),
       });
     }
   });
@@ -119,12 +265,31 @@ export function createApp(anthropic: Anthropic) {
         res.status(400).json({ error: "No file uploaded" });
         return;
       }
-      const messages = JSON.parse(req.file.buffer.toString("utf-8"));
-      if (!Array.isArray(messages)) {
+
+      if (!req.file.originalname.toLowerCase().endsWith(".json")) {
+        res.status(400).json({ error: "Only .json files are supported" });
+        return;
+      }
+
+      const raw = req.file.buffer.toString("utf-8").replace(/^\uFEFF/, "");
+      const messagesInput = JSON.parse(raw);
+      if (!Array.isArray(messagesInput)) {
         res.status(400).json({ error: "File must contain a JSON array" });
         return;
       }
-      res.json({ messages });
+
+      const parsedMessages = z.array(MessageSchema).safeParse(messagesInput);
+      if (!parsedMessages.success) {
+        res.status(400).json({ error: "Invalid message payload" });
+        return;
+      }
+
+      if (hasDuplicateMessageIds(parsedMessages.data)) {
+        res.status(400).json({ error: "Duplicate message ids are not allowed" });
+        return;
+      }
+
+      res.json({ messages: parsedMessages.data });
     } catch {
       res.status(400).json({ error: "Invalid JSON file" });
     }

@@ -85,7 +85,7 @@ describe("API round-trip integration", () => {
     expect(parsed.briefing.topPriority).toBeTruthy();
   });
 
-  test("BUG: invalid response passes server but fails Zod validation", async () => {
+  test("invalid response is rejected by server-side schema validation", async () => {
     // Claude returns completely wrong structure
     const badResponse = { triagedMessages: "not an array", flags: null };
     const app = createApp(
@@ -95,13 +95,12 @@ describe("API round-trip integration", () => {
     const res = await request(app)
       .post("/api/triage")
       .send({ messages: [makeMessage()] })
-      .expect(200); // Server returns 200 — no validation!
+      .expect(500);
 
-    // But Zod catches it — proving the server SHOULD use Zod
-    expect(() => TriageResponseSchema.parse(res.body)).toThrow();
+    expect(res.body.error).toBeDefined();
   });
 
-  test("BUG: response with wrong enum values passes server but fails Zod", async () => {
+  test("response with wrong enum values is rejected by server-side schema validation", async () => {
     const badEnumResponse = makeTriageResponse({
       triagedMessages: [
         {
@@ -119,9 +118,9 @@ describe("API round-trip integration", () => {
     const res = await request(app)
       .post("/api/triage")
       .send({ messages: [makeMessage()] })
-      .expect(200); // Server accepts it
+      .expect(500);
 
-    expect(() => TriageResponseSchema.parse(res.body)).toThrow();
+    expect(res.body.error).toBeDefined();
   });
 
   test("concurrent triage requests complete without cross-contamination", async () => {

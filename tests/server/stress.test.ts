@@ -43,7 +43,7 @@ describe("stress tests: fixture uploads", () => {
     expect(res.body.messages[0].to).toBeUndefined();
   });
 
-  test("stress-adversarial.json uploads successfully (no element validation)", async () => {
+  test("stress-adversarial.json upload is rejected for invalid message elements", async () => {
     const res = await request(app)
       .post("/api/upload")
       .attach(
@@ -51,14 +51,9 @@ describe("stress tests: fixture uploads", () => {
         Buffer.from(JSON.stringify(stressAdversarial)),
         "stress-adversarial.json"
       )
-      .expect(200);
+      .expect(400);
 
-    // BUG: All elements accepted — including nulls, strings, objects with wrong types
-    expect(res.body.messages).toHaveLength(stressAdversarial.length);
-
-    // Contains null and string elements that aren't valid Message objects
-    expect(res.body.messages).toContain(null);
-    expect(res.body.messages).toContain("not an object at all");
+    expect(res.body.error).toBeDefined();
   });
 
   test("stress-edge-cases.json uploads successfully", async () => {
@@ -80,7 +75,7 @@ describe("stress tests: fixture uploads", () => {
     expect(res.body.messages[8].body).toContain("你好世界");
   });
 
-  test("stress-conflicts.json uploads successfully (duplicate IDs accepted)", async () => {
+  test("stress-conflicts.json upload is rejected when duplicate IDs are present", async () => {
     const res = await request(app)
       .post("/api/upload")
       .attach(
@@ -88,14 +83,9 @@ describe("stress tests: fixture uploads", () => {
         Buffer.from(JSON.stringify(stressConflicts)),
         "stress-conflicts.json"
       )
-      .expect(200);
+      .expect(400);
 
-    expect(res.body.messages).toHaveLength(6);
-
-    // BUG: Duplicate IDs are accepted — id=1 appears twice, id=2 appears twice
-    const ids = res.body.messages.map((m: any) => m.id);
-    expect(ids.filter((id: number) => id === 1)).toHaveLength(2);
-    expect(ids.filter((id: number) => id === 2)).toHaveLength(2);
+    expect(res.body.error).toBeDefined();
   });
 });
 
@@ -130,24 +120,16 @@ describe("stress tests: triage with fixtures", () => {
     expect(res.body.triagedMessages).toHaveLength(1);
   });
 
-  test("BUG: adversarial messages pass through to Claude without validation", async () => {
+  test("adversarial messages are rejected before calling Claude", async () => {
     const mockAnthropic = createMockAnthropic(validResponseJson());
     const app = createApp(mockAnthropic);
 
-    // Filter out nulls and strings since they're still in an array
     await request(app)
       .post("/api/triage")
       .send({ messages: stressAdversarial })
-      .expect(200);
+      .expect(400);
 
-    // All adversarial data was sent to Claude — including XSS, SQL injection,
-    // null elements, wrong types, and missing required fields
-    expect(mockAnthropic.messages.create).toHaveBeenCalled();
-    const callArgs = (mockAnthropic.messages.create as any).mock.calls[0][0];
-    const content = callArgs.messages[0].content;
-    expect(content).toContain("<script>alert");
-    expect(content).toContain("DROP TABLE");
-    expect(content).toContain("null");
+    expect(mockAnthropic.messages.create).not.toHaveBeenCalled();
   });
 
   test("edge case messages triage successfully", async () => {
@@ -166,25 +148,17 @@ describe("stress tests: triage with fixtures", () => {
     expect(res.body.triagedMessages).toHaveLength(10);
   });
 
-  test("BUG: duplicate ID messages cause triage ambiguity", async () => {
-    // Claude returns triage for messageId 1 — but which message 1?
-    const response = makeTriageResponse({
-      triagedMessages: [
-        makeTriagedMessage({ messageId: 1, category: "decide" }),
-        makeTriagedMessage({ messageId: 2, category: "delegate" }),
-      ],
-    });
-    const app = createApp(createMockAnthropic(JSON.stringify(response)));
+  test("duplicate ID messages are rejected before triage", async () => {
+    const mockAnthropic = createMockAnthropic(validResponseJson());
+    const app = createApp(mockAnthropic);
 
     const res = await request(app)
       .post("/api/triage")
       .send({ messages: stressConflicts })
-      .expect(200);
+      .expect(400);
 
-    // Server returns the response as-is — it doesn't know about the duplicate ID problem
-    // The frontend's messages.find(m => m.id === triaged.messageId) will always
-    // return the FIRST message with that ID, silently ignoring the second
-    expect(res.body.triagedMessages).toHaveLength(2);
+    expect(res.body.error).toBeDefined();
+    expect(mockAnthropic.messages.create).not.toHaveBeenCalled();
   });
 });
 
