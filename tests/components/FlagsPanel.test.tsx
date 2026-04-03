@@ -1,5 +1,5 @@
-import { describe, test, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, test, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { FlagsPanel } from "../../src/components/FlagsPanel.tsx";
 import { makeMessage, makeFlag } from "../helpers/fixtures.ts";
 
@@ -169,6 +169,76 @@ describe("FlagsPanel", () => {
       );
       expect(screen.getByText("Alice")).toBeInTheDocument();
       expect(screen.getByText("Bob")).toBeInTheDocument();
+    });
+  });
+
+  describe("related message links", () => {
+    test("related messages are rendered as clickable buttons", () => {
+      render(
+        <FlagsPanel
+          flags={[makeFlag({ relatedMessageIds: [1] })]}
+          messages={[makeMessage({ id: 1, from: "Alice" })]}
+          onMessageClick={() => {}}
+        />
+      );
+      const button = screen.getByRole("button", { name: /Alice/ });
+      expect(button).toBeInTheDocument();
+    });
+
+    test("clicking a related message calls onMessageClick with the message id", () => {
+      const handleClick = vi.fn();
+      render(
+        <FlagsPanel
+          flags={[makeFlag({ relatedMessageIds: [42] })]}
+          messages={[makeMessage({ id: 42, from: "Bob" })]}
+          onMessageClick={handleClick}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Bob/ }));
+      expect(handleClick).toHaveBeenCalledWith(42);
+    });
+
+    test("each related message button passes its own id", () => {
+      const handleClick = vi.fn();
+      render(
+        <FlagsPanel
+          flags={[makeFlag({ relatedMessageIds: [1, 2] })]}
+          messages={[
+            makeMessage({ id: 1, from: "Alice" }),
+            makeMessage({ id: 2, from: "Bob" }),
+          ]}
+          onMessageClick={handleClick}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Bob/ }));
+      expect(handleClick).toHaveBeenCalledWith(2);
+      expect(handleClick).not.toHaveBeenCalledWith(1);
+    });
+
+    test("related message buttons still display sender and subject", () => {
+      render(
+        <FlagsPanel
+          flags={[makeFlag({ relatedMessageIds: [1] })]}
+          messages={[
+            makeMessage({ id: 1, from: "Alice", subject: "Q2 Report" }),
+          ]}
+          onMessageClick={() => {}}
+        />
+      );
+      const button = screen.getByRole("button", { name: /Alice/ });
+      expect(button).toHaveTextContent("Alice");
+      expect(button).toHaveTextContent("Q2 Report");
+    });
+
+    test("onMessageClick is not called when not provided (backward compat)", () => {
+      // Should render without crashing when onMessageClick is omitted
+      render(
+        <FlagsPanel
+          flags={[makeFlag({ relatedMessageIds: [1] })]}
+          messages={[makeMessage({ id: 1, from: "Alice" })]}
+        />
+      );
+      expect(screen.getByText("Alice")).toBeInTheDocument();
     });
   });
 

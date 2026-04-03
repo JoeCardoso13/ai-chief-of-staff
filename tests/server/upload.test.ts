@@ -203,11 +203,11 @@ describe("POST /api/upload", () => {
       const json = JSON.stringify([makeMessage()]);
       const res = await request(app)
         .post("/api/upload")
-        .attach("file", Buffer.from(bom + json, "utf-8"), "bom.json");
+        .attach("file", Buffer.from(bom + json, "utf-8"), "bom.json")
+        .expect(200);
 
-      // BOM before JSON may cause parse failure depending on implementation
-      // JSON.parse handles BOM in some environments but not all
-      expect([200, 400]).toContain(res.status);
+      expect(res.body.messages).toHaveLength(1);
+      expect(res.body.messages[0].id).toBe(makeMessage().id);
     });
 
     test("handles deeply nested JSON", async () => {

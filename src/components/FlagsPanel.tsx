@@ -3,6 +3,7 @@ import type { Flag, Message } from "../types.ts";
 interface Props {
   flags: Flag[];
   messages: Message[];
+  onMessageClick?: (messageId: number) => void;
 }
 
 const severityConfig = {
@@ -29,7 +30,7 @@ const severityConfig = {
   },
 };
 
-export function FlagsPanel({ flags, messages }: Props) {
+export function FlagsPanel({ flags, messages, onMessageClick }: Props) {
   if (flags.length === 0) {
     return (
       <div className="text-center py-12 text-gray-500">
@@ -79,9 +80,11 @@ export function FlagsPanel({ flags, messages }: Props) {
                       Related Messages
                     </p>
                     {relatedMsgs.map((m) => (
-                      <p
+                      <button
                         key={m.id}
-                        className="text-xs text-gray-600 flex items-center gap-1.5"
+                        type="button"
+                        onClick={() => onMessageClick?.(m.id)}
+                        className="text-xs text-gray-600 flex items-center gap-1.5 text-left hover:text-gray-900 transition-colors cursor-pointer"
                       >
                         <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
                         <span className="font-medium">{m.from}</span>
@@ -90,7 +93,7 @@ export function FlagsPanel({ flags, messages }: Props) {
                             &mdash; {m.subject}
                           </span>
                         )}
-                      </p>
+                      </button>
                     ))}
                   </div>
                 )}

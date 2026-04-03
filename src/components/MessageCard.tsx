@@ -4,6 +4,8 @@ import type { Message, TriagedMessage } from "../types.ts";
 interface Props {
   message: Message;
   triage: TriagedMessage;
+  defaultExpanded?: boolean;
+  showCategoryLabel?: boolean;
 }
 
 const categoryConfig = {
@@ -43,8 +45,13 @@ const channelIcons: Record<string, string> = {
   whatsapp: "M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3",
 };
 
-export function MessageCard({ message, triage }: Props) {
-  const [expanded, setExpanded] = useState(false);
+export function MessageCard({
+  message,
+  triage,
+  defaultExpanded = false,
+  showCategoryLabel = true,
+}: Props) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const cat = categoryConfig[triage.category];
   const urg = urgencyConfig[triage.urgency];
   const parsedDate = new Date(message.timestamp);
@@ -63,6 +70,7 @@ export function MessageCard({ message, triage }: Props) {
 
   return (
     <div
+      id={`message-${message.id}`}
       className={`card overflow-hidden transition-all ${
         triage.category === "decide" ? "ring-2 ring-red-200" : ""
       }`}
@@ -75,9 +83,11 @@ export function MessageCard({ message, triage }: Props) {
         {/* Category indicator */}
         <div className="flex flex-col items-center gap-1 pt-0.5">
           <div className={`w-3 h-3 rounded-full ${cat.dot}`} />
-          <span className={`text-[10px] font-semibold uppercase ${cat.text}`}>
-            {cat.label}
-          </span>
+          {showCategoryLabel && (
+            <span className={`text-[10px] font-semibold uppercase ${cat.text}`}>
+              {cat.label}
+            </span>
+          )}
         </div>
 
         {/* Content */}

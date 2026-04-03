@@ -21,6 +21,18 @@ describe("JSON extraction regex", () => {
       expect(JSON.parse(result!)).toEqual({ a: 1, b: 2 });
     });
 
+    test("extracts JSON from uppercase ```JSON code block", () => {
+      const input = '```JSON\n{"a":1}\n```';
+      const result = extractJson(input)!.trim();
+      expect(result).toBe('{"a":1}');
+    });
+
+    test("extracts JSON from mixed-case ```Json code block", () => {
+      const input = '```Json\n{"a":1}\n```';
+      const result = extractJson(input)!.trim();
+      expect(result).toBe('{"a":1}');
+    });
+
     test("prefers code block over raw JSON when both present", () => {
       const input =
         'Some text {"ignored":true} then ```json\n{"correct":true}\n```';

@@ -5,9 +5,8 @@ import { createApp } from "../../server/app.ts";
 import { createMockAnthropic } from "../helpers/mock-anthropic.ts";
 import { makeMessage, makeTriageResponse } from "../helpers/fixtures.ts";
 
-// Zod schemas that SHOULD be used in production for runtime validation.
-// These tests prove that proper schema validation is possible with the
-// already-installed Zod dependency.
+// Zod schemas matching the server-side validation in server/app.ts.
+// Used here to independently verify response structure.
 const TriagedMessageSchema = z.object({
   messageId: z.number(),
   category: z.enum(["ignore", "delegate", "decide"]),
@@ -67,7 +66,7 @@ describe("API round-trip integration", () => {
     expect(triageRes.body.briefing).toBeDefined();
   });
 
-  test("response structure validated against Zod schema (proving Zod should be used)", async () => {
+  test("response structure matches expected Zod schema", async () => {
     const validResponse = makeTriageResponse();
     const app = createApp(
       createMockAnthropic(JSON.stringify(validResponse))

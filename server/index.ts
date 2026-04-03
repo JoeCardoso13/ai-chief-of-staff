@@ -6,7 +6,16 @@ import { fileURLToPath } from "node:url";
 import { createApp } from "./app.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, "..", "..");
+
+// Walk up from __dirname until we find package.json — this works whether
+// running from source (server/) or compiled output (dist-server/server/).
+function findProjectRoot(dir: string): string {
+  if (existsSync(path.join(dir, "package.json"))) return dir;
+  const parent = path.dirname(dir);
+  if (parent === dir) return dir; // filesystem root, shouldn't happen
+  return findProjectRoot(parent);
+}
+const ROOT = findProjectRoot(__dirname);
 const envLoader = (process as typeof process & {
   loadEnvFile?: (path?: string) => void;
 }).loadEnvFile;

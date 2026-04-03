@@ -16,7 +16,7 @@ An AI-powered executive assistant that triages a CEO's morning communications ac
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) v18+
+- [Node.js](https://nodejs.org/) v20+
 - An [Anthropic API key](https://console.anthropic.com/) — this app uses Claude as its LLM provider
 
 ## Quick Start

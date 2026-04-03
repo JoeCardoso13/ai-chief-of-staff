@@ -529,4 +529,164 @@ describe("App flow", () => {
       expect(screen.queryByText("Missing local message")).not.toBeInTheDocument();
     });
   });
+
+  describe("flag-to-message navigation", () => {
+    async function setupWithFlags() {
+      render(<App />);
+      const messages = [
+        makeMessage({ id: 1, from: "Alice", subject: "Budget" }),
+        makeMessage({ id: 2, from: "Bob", subject: "Hiring" }),
+        makeMessage({ id: 3, from: "Carol", subject: "Newsletter" }),
+      ];
+      mockUploadSuccess(messages);
+      const fileInput = document.querySelector(
+        'input[type="file"]'
+      ) as HTMLInputElement;
+      await act(async () => {
+        fireEvent.change(fileInput, {
+          target: {
+            files: [
+              new File([JSON.stringify(messages)], "m.json", {
+                type: "application/json",
+              }),
+            ],
+          },
+        });
+      });
+      await waitFor(() => {
+        expect(screen.getByText("3 messages loaded")).toBeInTheDocument();
+      });
+
+      const response = makeTriageResponse({
+        triagedMessages: [
+          { messageId: 1, category: "decide", reason: "CEO must act on budget", urgency: "high", draftResponse: "Approved" },
+          { messageId: 2, category: "delegate", reason: "HR can handle", urgency: "medium", delegateTo: "HR", draftResponse: "FYI" },
+          { messageId: 3, category: "ignore", reason: "Spam newsletter", urgency: "low" },
+        ],
+        flags: [
+          {
+            title: "Budget risk",
+            description: "Budget numbers look off",
+            relatedMessageIds: [1],
+            severity: "warning",
+          },
+          {
+            title: "Hiring conflict",
+            description: "Conflicting hiring plans",
+            relatedMessageIds: [1, 2],
+            severity: "critical",
+          },
+        ],
+      });
+      mockTriageSuccess(response);
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("Run Triage"));
+      });
+      await waitFor(() => {
+        expect(screen.getByText("Top Priority")).toBeInTheDocument();
+      });
+    }
+
+    test("clicking a related message in flags tab switches to triage tab", async () => {
+      await setupWithFlags();
+
+      // Navigate to flags tab
+      fireEvent.click(screen.getByText(/Flags/));
+      await waitFor(() => {
+        expect(screen.getByText("Budget risk")).toBeInTheDocument();
+      });
+
+      // Click Alice's related message link
+      const aliceLink = screen.getAllByRole("button", { name: /Alice/ })[0];
+      fireEvent.click(aliceLink);
+
+      // Should now be on the triage tab
+      await waitFor(() => {
+        expect(screen.getByText(/^All \(/)).toBeInTheDocument();
+      });
+    });
+
+    test("navigating from flags resets filter to 'All'", async () => {
+      await setupWithFlags();
+
+      // Go to triage tab and set a filter
+      fireEvent.click(screen.getByText("Triage"));
+      fireEvent.click(screen.getByText(/^Decide/));
+      // Only decide messages visible
+      expect(screen.queryByText("HR can handle")).not.toBeInTheDocument();
+
+      // Now go to flags and click a related message
+      fireEvent.click(screen.getByText(/Flags/));
+      await waitFor(() => {
+        expect(screen.getByText("Budget risk")).toBeInTheDocument();
+      });
+      const aliceLink = screen.getAllByRole("button", { name: /Alice/ })[0];
+      fireEvent.click(aliceLink);
+
+      // Should be on triage tab with "All" filter — all messages visible
+      await waitFor(() => {
+        expect(screen.getByText("CEO must act on budget")).toBeInTheDocument();
+        expect(screen.getByText("HR can handle")).toBeInTheDocument();
+        expect(screen.getByText("Spam newsletter")).toBeInTheDocument();
+      });
+    });
+
+    test("the target message card is expanded after navigation", async () => {
+      await setupWithFlags();
+
+      // Navigate to flags tab and click Alice's message
+      fireEvent.click(screen.getByText(/Flags/));
+      await waitFor(() => {
+        expect(screen.getByText("Budget risk")).toBeInTheDocument();
+      });
+      const aliceLink = screen.getAllByRole("button", { name: /Alice/ })[0];
+      fireEvent.click(aliceLink);
+
+      // The target message (Alice, id=1) should be auto-expanded showing its body/details
+      await waitFor(() => {
+        // MessageCard shows the full message body when expanded
+        expect(
+          screen.getByText(/Please review the attached Q2 revenue report/)
+        ).toBeInTheDocument();
+      });
+    });
+
+    test("the target message card has a DOM anchor for scrolling", async () => {
+      await setupWithFlags();
+
+      fireEvent.click(screen.getByText(/Flags/));
+      await waitFor(() => {
+        expect(screen.getByText("Budget risk")).toBeInTheDocument();
+      });
+      const aliceLink = screen.getAllByRole("button", { name: /Alice/ })[0];
+      fireEvent.click(aliceLink);
+
+      // After navigation, the message card should exist with an id anchor
+      await waitFor(() => {
+        expect(document.getElementById("message-1")).not.toBeNull();
+      });
+    });
+
+    test("clicking different related messages navigates to different message cards", async () => {
+      await setupWithFlags();
+
+      // Go to flags tab — "Hiring conflict" flag has relatedMessageIds [1, 2]
+      fireEvent.click(screen.getByText(/Flags/));
+      await waitFor(() => {
+        expect(screen.getByText("Hiring conflict")).toBeInTheDocument();
+      });
+
+      // Click Bob's link
+      const bobLink = screen.getByRole("button", { name: /Bob/ });
+      fireEvent.click(bobLink);
+
+      // Should show triage tab with Bob's message expanded
+      await waitFor(() => {
+        expect(screen.getByText("HR can handle")).toBeInTheDocument();
+        // Bob's message card should exist with its anchor
+        expect(document.getElementById("message-2")).not.toBeNull();
+      });
+    });
+  });
 });

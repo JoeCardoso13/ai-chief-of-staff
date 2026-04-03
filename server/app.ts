@@ -78,6 +78,8 @@ function extractFirstJsonObject(text: string): string | null {
       continue;
     }
 
+    // Only double-quotes are tracked: single-quoted strings aren't valid JSON,
+    // and JSON.parse below will reject any mis-extracted candidate anyway.
     if (inString) {
       if (escaped) {
         escaped = false;

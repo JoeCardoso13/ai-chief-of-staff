@@ -249,6 +249,47 @@ describe("POST /api/triage", () => {
       expect(res.body.error).not.toContain("sk-ant-api03-FAKE_KEY_HERE");
     });
 
+    test("redacts multiple API keys in a single error message", async () => {
+      const error = new Error(
+        "Keys sk-ant-first-KEY and sk-ant-second-KEY both failed"
+      );
+      app = createApp(createFailingAnthropic(error));
+
+      const res = await request(app)
+        .post("/api/triage")
+        .send({ messages: [makeMessage()] })
+        .expect(500);
+
+      expect(res.body.error).not.toContain("sk-ant-first-KEY");
+      expect(res.body.error).not.toContain("sk-ant-second-KEY");
+      expect(res.body.error).toContain("[redacted-api-key]");
+    });
+
+    test("redacts API key at end of error string", async () => {
+      const error = new Error("Failed with key sk-ant-trailing123");
+      app = createApp(createFailingAnthropic(error));
+
+      const res = await request(app)
+        .post("/api/triage")
+        .send({ messages: [makeMessage()] })
+        .expect(500);
+
+      expect(res.body.error).not.toContain("sk-ant-trailing123");
+      expect(res.body.error).toContain("Failed with key [redacted-api-key]");
+    });
+
+    test("preserves non-key error content unchanged", async () => {
+      const error = new Error("Rate limit exceeded, try again in 30s");
+      app = createApp(createFailingAnthropic(error));
+
+      const res = await request(app)
+        .post("/api/triage")
+        .send({ messages: [makeMessage()] })
+        .expect(500);
+
+      expect(res.body.error).toBe("Rate limit exceeded, try again in 30s");
+    });
+
     test("handles Anthropic rate limit error", async () => {
       const rateLimitError = new Error("Rate limit exceeded");
       (rateLimitError as any).status = 429;

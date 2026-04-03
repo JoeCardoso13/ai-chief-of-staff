@@ -4,6 +4,29 @@ import { MessageCard } from "../../src/components/MessageCard.tsx";
 import { makeMessage, makeTriagedMessage } from "../helpers/fixtures.ts";
 
 describe("MessageCard", () => {
+  describe("DOM anchoring", () => {
+    test("has an id attribute matching the message id for scroll targeting", () => {
+      const { container } = render(
+        <MessageCard
+          message={makeMessage({ id: 7 })}
+          triage={makeTriagedMessage({ messageId: 7 })}
+        />
+      );
+      expect(container.querySelector("#message-7")).not.toBeNull();
+    });
+
+    test("different message ids produce different anchors", () => {
+      const { container: c1 } = render(
+        <MessageCard
+          message={makeMessage({ id: 99 })}
+          triage={makeTriagedMessage({ messageId: 99 })}
+        />
+      );
+      expect(c1.querySelector("#message-99")).not.toBeNull();
+      expect(c1.querySelector("#message-7")).toBeNull();
+    });
+  });
+
   describe("basic rendering", () => {
     test("renders sender name", () => {
       render(

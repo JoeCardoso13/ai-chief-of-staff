@@ -117,6 +117,53 @@ test.describe("mocked browser e2e", () => {
     ).toBeVisible();
   });
 
+  test("clicking a related message in flags navigates to triage tab with that message", async ({
+    page,
+  }) => {
+    await page.route("**/api/upload", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ messages }),
+      });
+    });
+
+    await page.route("**/api/triage", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(triageResponse),
+      });
+    });
+
+    await page.goto("/");
+
+    await page.locator('input[type="file"]').setInputFiles({
+      name: "messages.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(messages)),
+    });
+
+    await expect(page.getByText("2 messages loaded", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Run Triage" }).click();
+    await expect(page.getByText("Top Priority")).toBeVisible();
+
+    // Navigate to flags tab
+    await page.getByRole("button", { name: /Flags \(1\)/ }).click();
+    await expect(page.getByText("Production build failure")).toBeVisible();
+
+    // Click the related message link (Build Bot, message id 2)
+    const relatedLink = page.getByRole("button", { name: /Build Bot/ });
+    await expect(relatedLink).toBeVisible();
+    await relatedLink.click();
+
+    // Should switch to triage tab with "All" filter visible
+    await expect(page.getByText("All (2)")).toBeVisible();
+
+    // The target message card should be expanded / visible
+    await expect(page.locator("#message-2")).toBeVisible();
+  });
+
   test("shows server error banner when upload fails", async ({ page }) => {
     await page.route("**/api/upload", async (route) => {
       await route.fulfill({

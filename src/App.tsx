@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Message, TriageResponse, TriageCategory } from "./types.ts";
 import { BriefingView } from "./components/BriefingView.tsx";
 import { FlagsPanel } from "./components/FlagsPanel.tsx";
@@ -14,6 +14,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("briefing");
   const [filter, setFilter] = useState<TriageCategory | "all">("all");
+  const [selectedMessageId, setSelectedMessageId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const runTriage = useCallback(async (msgs: Message[]) => {
@@ -33,6 +34,7 @@ export function App() {
       const data: TriageResponse = await res.json();
       setResult(data);
       setActiveTab("briefing");
+      setSelectedMessageId(null);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -60,6 +62,7 @@ export function App() {
         const data = await res.json();
         setMessages(data.messages);
         setResult(null);
+        setSelectedMessageId(null);
       } catch (e: any) {
         setError(e.message);
       }
@@ -68,6 +71,21 @@ export function App() {
     },
     []
   );
+
+  useEffect(() => {
+    if (activeTab !== "triage" || selectedMessageId === null) return;
+
+    const target = document.getElementById(`message-${selectedMessageId}`);
+    if (typeof target?.scrollIntoView === "function") {
+      target.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  }, [activeTab, selectedMessageId, filter, result]);
+
+  const handleFlagMessageClick = useCallback((messageId: number) => {
+    setFilter("all");
+    setSelectedMessageId(messageId);
+    setActiveTab("triage");
+  }, []);
 
   const filteredMessages =
     result && filter !== "all"
@@ -304,6 +322,8 @@ export function App() {
                         key={triaged.messageId}
                         message={msg}
                         triage={triaged}
+                        defaultExpanded={triaged.messageId === selectedMessageId}
+                        showCategoryLabel={false}
                       />
                     );
                   })}
@@ -313,7 +333,11 @@ export function App() {
 
             {/* Flags tab */}
             {activeTab === "flags" && (
-              <FlagsPanel flags={result.flags} messages={messages} />
+              <FlagsPanel
+                flags={result.flags}
+                messages={messages}
+                onMessageClick={handleFlagMessageClick}
+              />
             )}
           </>
         )}
