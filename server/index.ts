@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,6 +7,17 @@ import { createApp } from "./app.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..", "..");
+const envLoader = (process as typeof process & {
+  loadEnvFile?: (path?: string) => void;
+}).loadEnvFile;
+
+if (envLoader && existsSync(path.join(ROOT, ".env"))) {
+  envLoader(path.join(ROOT, ".env"));
+}
+
+if (envLoader && existsSync(path.join(ROOT, ".env.local"))) {
+  envLoader(path.join(ROOT, ".env.local"));
+}
 
 const anthropic = new Anthropic();
 const app = createApp(anthropic);

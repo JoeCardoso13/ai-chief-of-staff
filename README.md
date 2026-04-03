@@ -25,8 +25,11 @@ An AI-powered executive assistant that triages a CEO's morning communications ac
 # Install dependencies
 npm install
 
-# Set your Anthropic API key
+# Option 1: export your Anthropic API key
 export ANTHROPIC_API_KEY=sk-ant-...
+# Option 2: use an environment file
+# .env or .env.local in the project root
+ANTHROPIC_API_KEY=sk-ant-...
 
 # Run in development mode
 npm run dev
