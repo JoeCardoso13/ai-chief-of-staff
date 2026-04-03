@@ -1,4 +1,4 @@
-import { describe, test, expect } from "vitest";
+import { describe, test, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MessageCard } from "../../src/components/MessageCard.tsx";
 import { makeMessage, makeTriagedMessage } from "../helpers/fixtures.ts";
@@ -326,6 +326,398 @@ describe("MessageCard", () => {
       );
       // Should render without error, using email icon fallback
       expect(screen.getByText("Alice Johnson")).toBeInTheDocument();
+    });
+  });
+
+  describe("reclassify", () => {
+    test("shows a Reclassify button when the card is expanded", () => {
+      render(
+        <MessageCard
+          message={makeMessage()}
+          triage={makeTriagedMessage()}
+          defaultExpanded
+          onReclassify={() => {}}
+        />
+      );
+      expect(
+        screen.getByRole("button", { name: /Reclassify/i })
+      ).toBeInTheDocument();
+    });
+
+    test("Reclassify button is hidden when the card is collapsed", () => {
+      render(
+        <MessageCard
+          message={makeMessage()}
+          triage={makeTriagedMessage()}
+          onReclassify={() => {}}
+        />
+      );
+      expect(
+        screen.queryByRole("button", { name: /Reclassify/i })
+      ).not.toBeInTheDocument();
+    });
+
+    test("Reclassify button is not rendered when onReclassify is not provided", () => {
+      render(
+        <MessageCard
+          message={makeMessage()}
+          triage={makeTriagedMessage()}
+          defaultExpanded
+        />
+      );
+      expect(
+        screen.queryByRole("button", { name: /Reclassify/i })
+      ).not.toBeInTheDocument();
+    });
+
+    test("clicking Reclassify shows a form with category options", () => {
+      render(
+        <MessageCard
+          message={makeMessage()}
+          triage={makeTriagedMessage({ category: "decide" })}
+          defaultExpanded
+          onReclassify={() => {}}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Reclassify/i }));
+
+      // Should show a category select/dropdown
+      const select = screen.getByRole("combobox", { name: /category/i });
+      expect(select).toBeInTheDocument();
+
+      // Should show delegate and ignore options, but NOT the current category (decide)
+      const options = Array.from(select.querySelectorAll("option")).map(
+        (o: HTMLOptionElement) => o.value
+      );
+      expect(options).toContain("delegate");
+      expect(options).toContain("ignore");
+      expect(options).not.toContain("decide");
+    });
+
+    test("reclassify form for a 'delegate' message excludes 'delegate' from options", () => {
+      render(
+        <MessageCard
+          message={makeMessage()}
+          triage={makeTriagedMessage({ category: "delegate" })}
+          defaultExpanded
+          onReclassify={() => {}}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Reclassify/i }));
+
+      const select = screen.getByRole("combobox", { name: /category/i });
+      const options = Array.from(select.querySelectorAll("option")).map(
+        (o: HTMLOptionElement) => o.value
+      );
+      expect(options).toContain("decide");
+      expect(options).toContain("ignore");
+      expect(options).not.toContain("delegate");
+    });
+
+    test("reclassify form shows a delegate-to input field", () => {
+      render(
+        <MessageCard
+          message={makeMessage()}
+          triage={makeTriagedMessage({ category: "decide" })}
+          defaultExpanded
+          onReclassify={() => {}}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Reclassify/i }));
+
+      expect(
+        screen.getByPlaceholderText(/delegate to/i)
+      ).toBeInTheDocument();
+    });
+
+    test("reclassify form shows a reason input field", () => {
+      render(
+        <MessageCard
+          message={makeMessage()}
+          triage={makeTriagedMessage({ category: "decide" })}
+          defaultExpanded
+          onReclassify={() => {}}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Reclassify/i }));
+
+      expect(
+        screen.getByPlaceholderText(/reason/i)
+      ).toBeInTheDocument();
+    });
+
+    test("reclassify form has an Apply button", () => {
+      render(
+        <MessageCard
+          message={makeMessage()}
+          triage={makeTriagedMessage({ category: "decide" })}
+          defaultExpanded
+          onReclassify={() => {}}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Reclassify/i }));
+
+      expect(
+        screen.getByRole("button", { name: /Apply/i })
+      ).toBeInTheDocument();
+    });
+
+    test("clicking Apply calls onReclassify with messageId, new category, delegateTo, and reason", () => {
+      const handleReclassify = vi.fn();
+      render(
+        <MessageCard
+          message={makeMessage({ id: 42 })}
+          triage={makeTriagedMessage({ messageId: 42, category: "decide" })}
+          defaultExpanded
+          onReclassify={handleReclassify}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Reclassify/i }));
+
+      // Select "delegate" category
+      fireEvent.change(screen.getByRole("combobox", { name: /category/i }), {
+        target: { value: "delegate" },
+      });
+      // Fill in delegate-to
+      fireEvent.change(screen.getByPlaceholderText(/delegate to/i), {
+        target: { value: "VP Engineering" },
+      });
+      // Fill in reason
+      fireEvent.change(screen.getByPlaceholderText(/reason/i), {
+        target: { value: "VP can handle this" },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /Apply/i }));
+
+      expect(handleReclassify).toHaveBeenCalledWith(
+        42,
+        "delegate",
+        "VP Engineering",
+        "VP can handle this"
+      );
+    });
+
+    test("clicking Apply with only category (no delegateTo/reason) still calls onReclassify", () => {
+      const handleReclassify = vi.fn();
+      render(
+        <MessageCard
+          message={makeMessage({ id: 5 })}
+          triage={makeTriagedMessage({ messageId: 5, category: "delegate" })}
+          defaultExpanded
+          onReclassify={handleReclassify}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Reclassify/i }));
+
+      // Just click Apply without filling optional fields
+      fireEvent.click(screen.getByRole("button", { name: /Apply/i }));
+
+      expect(handleReclassify).toHaveBeenCalledWith(
+        5,
+        expect.any(String),     // one of the other categories
+        undefined,              // delegateTo omitted
+        undefined               // reason omitted
+      );
+    });
+
+    test("clicking Reclassify again toggles the form off", () => {
+      render(
+        <MessageCard
+          message={makeMessage()}
+          triage={makeTriagedMessage({ category: "decide" })}
+          defaultExpanded
+          onReclassify={() => {}}
+        />
+      );
+      const reclassifyBtn = screen.getByRole("button", { name: /Reclassify/i });
+      fireEvent.click(reclassifyBtn);
+      expect(screen.getByRole("combobox", { name: /category/i })).toBeInTheDocument();
+
+      fireEvent.click(reclassifyBtn);
+      expect(screen.queryByRole("combobox", { name: /category/i })).not.toBeInTheDocument();
+    });
+  });
+
+  describe("refine draft", () => {
+    test("shows a Refine Draft button when expanded and draftResponse exists", () => {
+      render(
+        <MessageCard
+          message={makeMessage()}
+          triage={makeTriagedMessage({ draftResponse: "I'll review it." })}
+          defaultExpanded
+          onRefineDraft={() => {}}
+        />
+      );
+      expect(
+        screen.getByRole("button", { name: /Refine Draft/i })
+      ).toBeInTheDocument();
+    });
+
+    test("Refine Draft button is hidden when draftResponse is absent", () => {
+      render(
+        <MessageCard
+          message={makeMessage()}
+          triage={makeTriagedMessage({ draftResponse: undefined })}
+          defaultExpanded
+          onRefineDraft={() => {}}
+        />
+      );
+      expect(
+        screen.queryByRole("button", { name: /Refine Draft/i })
+      ).not.toBeInTheDocument();
+    });
+
+    test("Refine Draft button is not rendered when onRefineDraft is not provided", () => {
+      render(
+        <MessageCard
+          message={makeMessage()}
+          triage={makeTriagedMessage({ draftResponse: "I'll review it." })}
+          defaultExpanded
+        />
+      );
+      expect(
+        screen.queryByRole("button", { name: /Refine Draft/i })
+      ).not.toBeInTheDocument();
+    });
+
+    test("Refine Draft button is hidden when card is collapsed", () => {
+      render(
+        <MessageCard
+          message={makeMessage()}
+          triage={makeTriagedMessage({ draftResponse: "I'll review it." })}
+          onRefineDraft={() => {}}
+        />
+      );
+      expect(
+        screen.queryByRole("button", { name: /Refine Draft/i })
+      ).not.toBeInTheDocument();
+    });
+
+    test("clicking Refine Draft shows an instruction input and Refine button", () => {
+      render(
+        <MessageCard
+          message={makeMessage()}
+          triage={makeTriagedMessage({ draftResponse: "I'll review it." })}
+          defaultExpanded
+          onRefineDraft={() => {}}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Refine Draft/i }));
+
+      expect(
+        screen.getByPlaceholderText(/e\.g\.|make it|more formal|instruction/i)
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /^Refine$/i })
+      ).toBeInTheDocument();
+    });
+
+    test("clicking Refine calls onRefineDraft with messageId and instruction", () => {
+      const handleRefine = vi.fn();
+      render(
+        <MessageCard
+          message={makeMessage({ id: 10 })}
+          triage={makeTriagedMessage({
+            messageId: 10,
+            draftResponse: "I'll review it.",
+          })}
+          defaultExpanded
+          onRefineDraft={handleRefine}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Refine Draft/i }));
+
+      const input = screen.getByPlaceholderText(
+        /e\.g\.|make it|more formal|instruction/i
+      );
+      fireEvent.change(input, {
+        target: { value: "make it more formal" },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /^Refine$/i }));
+
+      expect(handleRefine).toHaveBeenCalledWith(10, "make it more formal");
+    });
+
+    test("Refine button does nothing when instruction is empty", () => {
+      const handleRefine = vi.fn();
+      render(
+        <MessageCard
+          message={makeMessage({ id: 10 })}
+          triage={makeTriagedMessage({
+            messageId: 10,
+            draftResponse: "I'll review it.",
+          })}
+          defaultExpanded
+          onRefineDraft={handleRefine}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Refine Draft/i }));
+
+      // Click Refine without typing anything
+      fireEvent.click(screen.getByRole("button", { name: /^Refine$/i }));
+
+      expect(handleRefine).not.toHaveBeenCalled();
+    });
+
+    test("clicking Refine Draft again toggles the form off", () => {
+      render(
+        <MessageCard
+          message={makeMessage()}
+          triage={makeTriagedMessage({ draftResponse: "I'll review it." })}
+          defaultExpanded
+          onRefineDraft={() => {}}
+        />
+      );
+      const refineBtn = screen.getByRole("button", { name: /Refine Draft/i });
+      fireEvent.click(refineBtn);
+      expect(
+        screen.getByPlaceholderText(/e\.g\.|make it|more formal|instruction/i)
+      ).toBeInTheDocument();
+
+      fireEvent.click(refineBtn);
+      expect(
+        screen.queryByPlaceholderText(/e\.g\.|make it|more formal|instruction/i)
+      ).not.toBeInTheDocument();
+    });
+
+    test("opening reclassify form closes refine form and vice versa", () => {
+      render(
+        <MessageCard
+          message={makeMessage()}
+          triage={makeTriagedMessage({
+            category: "decide",
+            draftResponse: "I'll review it.",
+          })}
+          defaultExpanded
+          onReclassify={() => {}}
+          onRefineDraft={() => {}}
+        />
+      );
+
+      // Open refine form
+      fireEvent.click(screen.getByRole("button", { name: /Refine Draft/i }));
+      expect(
+        screen.getByPlaceholderText(/e\.g\.|make it|more formal|instruction/i)
+      ).toBeInTheDocument();
+
+      // Open reclassify form — refine form should close
+      fireEvent.click(screen.getByRole("button", { name: /Reclassify/i }));
+      expect(
+        screen.getByRole("combobox", { name: /category/i })
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByPlaceholderText(/e\.g\.|make it|more formal|instruction/i)
+      ).not.toBeInTheDocument();
+
+      // Open refine form again — reclassify form should close
+      fireEvent.click(screen.getByRole("button", { name: /Refine Draft/i }));
+      expect(
+        screen.queryByRole("combobox", { name: /category/i })
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByPlaceholderText(/e\.g\.|make it|more formal|instruction/i)
+      ).toBeInTheDocument();
     });
   });
 

@@ -87,6 +87,99 @@ export function App() {
     setActiveTab("triage");
   }, []);
 
+  const handleReclassify = useCallback(
+    async (
+      messageId: number,
+      category: TriageCategory,
+      delegateTo?: string,
+      reason?: string
+    ) => {
+      if (!result) return;
+
+      const message = messages.find((m) => m.id === messageId);
+      const triage = result.triagedMessages.find((m) => m.messageId === messageId);
+      if (!message || !triage) return;
+
+      setError(null);
+
+      try {
+        const res = await fetch("/api/reclassify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message,
+            triage,
+            category,
+            delegateTo,
+            reason,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to reclassify message");
+        }
+
+        const updatedTriage = await res.json();
+        setResult((current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            triagedMessages: current.triagedMessages.map((item) =>
+              item.messageId === messageId ? updatedTriage : item
+            ),
+          };
+        });
+      } catch (e: any) {
+        setError(e.message);
+      }
+    },
+    [messages, result]
+  );
+
+  const handleRefineDraft = useCallback(
+    async (messageId: number, instruction: string) => {
+      if (!result) return;
+
+      const message = messages.find((m) => m.id === messageId);
+      const triage = result.triagedMessages.find((m) => m.messageId === messageId);
+      if (!message || !triage) return;
+
+      setError(null);
+
+      try {
+        const res = await fetch("/api/refine-draft", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message,
+            triage,
+            instruction,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to refine draft");
+        }
+
+        const updatedDraft = await res.json();
+        setResult((current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            triagedMessages: current.triagedMessages.map((item) =>
+              item.messageId === messageId
+                ? { ...item, draftResponse: updatedDraft.draftResponse }
+                : item
+            ),
+          };
+        });
+      } catch (e: any) {
+        setError(e.message);
+      }
+    },
+    [messages, result]
+  );
+
   const filteredMessages =
     result && filter !== "all"
       ? result.triagedMessages.filter((t) => t.category === filter)
@@ -324,6 +417,8 @@ export function App() {
                         triage={triaged}
                         defaultExpanded={triaged.messageId === selectedMessageId}
                         showCategoryLabel={false}
+                        onReclassify={handleReclassify}
+                        onRefineDraft={handleRefineDraft}
                       />
                     );
                   })}

@@ -46,6 +46,33 @@ const TriageResponseSchema = z.object({
   briefing: BriefingSchema,
 });
 
+const ReclassifyRequestSchema = z.object({
+  message: MessageSchema,
+  triage: TriagedMessageSchema,
+  category: z.enum(["ignore", "delegate", "decide"]),
+  delegateTo: z.string().optional(),
+  reason: z.string().optional(),
+});
+
+const ReclassifiedMessageSchema = z.object({
+  messageId: z.number(),
+  category: z.enum(["ignore", "delegate", "decide"]),
+  reason: z.string(),
+  delegateTo: z.string().optional(),
+  draftResponse: z.string(),
+  urgency: z.enum(["low", "medium", "high", "critical"]),
+});
+
+const RefineDraftRequestSchema = z.object({
+  message: MessageSchema,
+  triage: TriagedMessageSchema,
+  instruction: z.string(),
+});
+
+const RefinedDraftSchema = z.object({
+  draftResponse: z.string(),
+});
+
 function hasDuplicateMessageIds(messages: Array<{ id: number }>) {
   const ids = new Set<number>();
   for (const message of messages) {
@@ -187,6 +214,29 @@ Respond with valid JSON matching this exact schema:
   }
 }`;
 
+async function createAnthropicTextResponse(
+  anthropic: Anthropic,
+  system: string,
+  content: string
+) {
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 8192,
+    system,
+    messages: [
+      {
+        role: "user",
+        content,
+      },
+    ],
+  });
+
+  return response.content
+    .filter((block): block is Anthropic.TextBlock => block.type === "text")
+    .map((block) => block.text)
+    .join("");
+}
+
 export function createApp(anthropic: Anthropic) {
   const app = express();
   app.use(cors());
@@ -212,24 +262,11 @@ export function createApp(anthropic: Anthropic) {
         return;
       }
 
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 8192,
-        system: SYSTEM_PROMPT,
-        messages: [
-          {
-            role: "user",
-            content: `Here are today's incoming messages:\n\n${JSON.stringify(messages, null, 2)}\n\nPlease triage all ${messages.length} messages and produce the full analysis.`,
-          },
-        ],
-      });
-
-      const text = response.content
-        .filter(
-          (block): block is Anthropic.TextBlock => block.type === "text"
-        )
-        .map((block) => block.text)
-        .join("");
+      const text = await createAnthropicTextResponse(
+        anthropic,
+        SYSTEM_PROMPT,
+        `Here are today's incoming messages:\n\n${JSON.stringify(messages, null, 2)}\n\nPlease triage all ${messages.length} messages and produce the full analysis.`
+      );
 
       const extractedJson = extractJson(text);
       if (!extractedJson) {
@@ -294,6 +331,106 @@ export function createApp(anthropic: Anthropic) {
       res.json({ messages: parsedMessages.data });
     } catch {
       res.status(400).json({ error: "Invalid JSON file" });
+    }
+  });
+
+  app.post("/api/reclassify", async (req, res) => {
+    try {
+      const parsedRequest = ReclassifyRequestSchema.safeParse(req.body);
+      if (!parsedRequest.success) {
+        res.status(400).json({ error: "Invalid reclassify payload" });
+        return;
+      }
+
+      const { message, triage, category, delegateTo, reason } = parsedRequest.data;
+      if (triage.category === category) {
+        res.status(400).json({ error: "Requested category must differ from current category" });
+        return;
+      }
+
+      const text = await createAnthropicTextResponse(
+        anthropic,
+        "You revise a single triaged CEO message. Return only valid JSON matching the requested schema.",
+        `Reclassify this message based on updated instructions.\n\nOriginal message:\n${JSON.stringify(message, null, 2)}\n\nCurrent triage:\n${JSON.stringify(triage, null, 2)}\n\nRequested update:\n${JSON.stringify(
+          {
+            category,
+            delegateTo,
+            reason,
+          }
+        )}\n\nReturn valid JSON with this exact schema:\n{\n  "messageId": <number>,\n  "category": "ignore" | "delegate" | "decide",\n  "reason": "<one sentence explaining why>",\n  "delegateTo": "<person or role, only if category is delegate>",\n  "draftResponse": "<drafted response text>",\n  "urgency": "low" | "medium" | "high" | "critical"\n}`
+      );
+
+      const extractedJson = extractJson(text);
+      if (!extractedJson) {
+        res.status(500).json({ error: "Failed to parse AI response" });
+        return;
+      }
+
+      const parsedResponse = ReclassifiedMessageSchema.safeParse(
+        JSON.parse(extractedJson)
+      );
+      if (!parsedResponse.success) {
+        res.status(500).json({ error: "Invalid AI response schema" });
+        return;
+      }
+
+      res.json(parsedResponse.data);
+    } catch (error: any) {
+      console.error("Reclassify error:", error);
+      res.status(500).json({
+        error: sanitizeErrorMessage(
+          error?.message || "Internal server error"
+        ),
+      });
+    }
+  });
+
+  app.post("/api/refine-draft", async (req, res) => {
+    try {
+      const parsedRequest = RefineDraftRequestSchema.safeParse(req.body);
+      if (!parsedRequest.success) {
+        res.status(400).json({ error: "Invalid refine draft payload" });
+        return;
+      }
+
+      const { message, triage, instruction } = parsedRequest.data;
+      if (!triage.draftResponse) {
+        res.status(400).json({ error: "draftResponse is required to refine a draft" });
+        return;
+      }
+      if (!instruction.trim()) {
+        res.status(400).json({ error: "instruction is required" });
+        return;
+      }
+
+      const text = await createAnthropicTextResponse(
+        anthropic,
+        "You rewrite an existing CEO draft. Return only valid JSON matching the requested schema.",
+        `Refine the existing draft using the instruction below.\n\nOriginal message:\n${JSON.stringify(message, null, 2)}\n\nCurrent triage:\n${JSON.stringify(triage, null, 2)}\n\nExisting draft:\n${triage.draftResponse}\n\nInstruction:\n${instruction.trim()}\n\nReturn valid JSON with this exact schema:\n{\n  "draftResponse": "<rewritten draft text>"\n}`
+      );
+
+      const extractedJson = extractJson(text);
+      if (!extractedJson) {
+        res.status(500).json({ error: "Failed to parse AI response" });
+        return;
+      }
+
+      const parsedResponse = RefinedDraftSchema.safeParse(
+        JSON.parse(extractedJson)
+      );
+      if (!parsedResponse.success) {
+        res.status(500).json({ error: "Invalid AI response schema" });
+        return;
+      }
+
+      res.json(parsedResponse.data);
+    } catch (error: any) {
+      console.error("Refine draft error:", error);
+      res.status(500).json({
+        error: sanitizeErrorMessage(
+          error?.message || "Internal server error"
+        ),
+      });
     }
   });
 

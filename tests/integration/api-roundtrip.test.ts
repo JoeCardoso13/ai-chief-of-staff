@@ -3,7 +3,11 @@ import request from "supertest";
 import { z } from "zod";
 import { createApp } from "../../server/app.ts";
 import { createMockAnthropic } from "../helpers/mock-anthropic.ts";
-import { makeMessage, makeTriageResponse } from "../helpers/fixtures.ts";
+import {
+  makeMessage,
+  makeTriagedMessage,
+  makeTriageResponse,
+} from "../helpers/fixtures.ts";
 
 // Zod schemas matching the server-side validation in server/app.ts.
 // Used here to independently verify response structure.
@@ -182,5 +186,58 @@ describe("API round-trip integration", () => {
 
     const callArgs = (mockAnthropic.messages.create as any).mock.calls[0][0];
     expect(callArgs.messages[0].content).toContain("triage all 10 messages");
+  });
+
+  test("reclassify round-trip returns a triaged message matching schema", async () => {
+    const reclassified = makeTriageResponse().triagedMessages[0];
+    const app = createApp(
+      createMockAnthropic(
+        JSON.stringify({
+          ...reclassified,
+          category: "delegate",
+          delegateTo: "Chief of Staff",
+          draftResponse: "Please take this and loop me in if needed.",
+        })
+      )
+    );
+
+    const res = await request(app)
+      .post("/api/reclassify")
+      .send({
+        message: makeMessage(),
+        triage: makeTriagedMessage(),
+        category: "delegate",
+        delegateTo: "Chief of Staff",
+        reason: "This can be delegated.",
+      })
+      .expect(200);
+
+    const parsed = TriagedMessageSchema.parse(res.body);
+    expect(parsed.category).toBe("delegate");
+    expect(parsed.delegateTo).toBe("Chief of Staff");
+  });
+
+  test("refine draft round-trip returns the rewritten draft", async () => {
+    const app = createApp(
+      createMockAnthropic(
+        JSON.stringify({
+          draftResponse:
+            "Thank you. I will review this today and get back to you this afternoon.",
+        })
+      )
+    );
+
+    const res = await request(app)
+      .post("/api/refine-draft")
+      .send({
+        message: makeMessage(),
+        triage: makeTriagedMessage({
+          draftResponse: "I'll review it.",
+        }),
+        instruction: "Make it more formal and specific.",
+      })
+      .expect(200);
+
+    expect(res.body.draftResponse).toContain("this afternoon");
   });
 });

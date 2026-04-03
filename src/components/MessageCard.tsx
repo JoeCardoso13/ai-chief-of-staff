@@ -1,11 +1,21 @@
 import { useState } from "react";
-import type { Message, TriagedMessage } from "../types.ts";
+import type { Message, TriagedMessage, TriageCategory } from "../types.ts";
 
 interface Props {
   message: Message;
   triage: TriagedMessage;
   defaultExpanded?: boolean;
   showCategoryLabel?: boolean;
+  onReclassify?: (
+    messageId: number,
+    category: TriageCategory,
+    delegateTo?: string,
+    reason?: string
+  ) => void | Promise<void>;
+  onRefineDraft?: (
+    messageId: number,
+    instruction: string
+  ) => void | Promise<void>;
 }
 
 const categoryConfig = {
@@ -50,8 +60,20 @@ export function MessageCard({
   triage,
   defaultExpanded = false,
   showCategoryLabel = true,
+  onReclassify,
+  onRefineDraft,
 }: Props) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const availableCategories = (Object.keys(categoryConfig) as TriageCategory[])
+    .filter((category) => category !== triage.category);
+  const [showReclassifyForm, setShowReclassifyForm] = useState(false);
+  const [showRefineForm, setShowRefineForm] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<TriageCategory>(
+    availableCategories[0] ?? triage.category
+  );
+  const [delegateToValue, setDelegateToValue] = useState("");
+  const [reasonValue, setReasonValue] = useState("");
+  const [refineInstruction, setRefineInstruction] = useState("");
   const cat = categoryConfig[triage.category];
   const urg = urgencyConfig[triage.urgency];
   const parsedDate = new Date(message.timestamp);
@@ -67,6 +89,46 @@ export function MessageCard({
         ? `Draft Handoff to ${triage.delegateTo}`
         : "Draft Handoff"
       : "Draft Response";
+
+  const toggleReclassifyForm = () => {
+    setShowReclassifyForm((open) => {
+      const nextOpen = !open;
+      if (nextOpen) {
+        setShowRefineForm(false);
+        setSelectedCategory(availableCategories[0] ?? triage.category);
+      }
+      return nextOpen;
+    });
+  };
+
+  const toggleRefineForm = () => {
+    setShowRefineForm((open) => {
+      const nextOpen = !open;
+      if (nextOpen) {
+        setShowReclassifyForm(false);
+      }
+      return nextOpen;
+    });
+  };
+
+  const handleApplyReclassification = () => {
+    onReclassify?.(
+      message.id,
+      selectedCategory,
+      delegateToValue || undefined,
+      reasonValue || undefined
+    );
+    setShowReclassifyForm(false);
+  };
+
+  const handleRefineDraft = () => {
+    const instruction = refineInstruction.trim();
+    if (!instruction) return;
+
+    onRefineDraft?.(message.id, instruction);
+    setShowRefineForm(false);
+    setRefineInstruction("");
+  };
 
   return (
     <div
@@ -184,6 +246,100 @@ export function MessageCard({
                   {triage.draftResponse}
                 </p>
               </div>
+            </div>
+          )}
+
+          {(onReclassify || (onRefineDraft && triage.draftResponse)) && (
+            <div className="px-4 py-3 border-t border-gray-100 bg-white/70">
+              <div className="flex flex-wrap gap-2">
+                {onReclassify && (
+                  <button
+                    type="button"
+                    onClick={toggleReclassifyForm}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                  >
+                    Reclassify
+                  </button>
+                )}
+                {onRefineDraft && triage.draftResponse && (
+                  <button
+                    type="button"
+                    onClick={toggleRefineForm}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                  >
+                    Refine Draft
+                  </button>
+                )}
+              </div>
+
+              {showReclassifyForm && onReclassify && (
+                <div className="mt-3 grid gap-3">
+                  <label className="grid gap-1 text-sm text-gray-700">
+                    <span className="font-medium">Category</span>
+                    <select
+                      aria-label="Category"
+                      value={selectedCategory}
+                      onChange={(e) =>
+                        setSelectedCategory(e.target.value as TriageCategory)
+                      }
+                      className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                    >
+                      {availableCategories.map((category) => (
+                        <option
+                          key={category}
+                          value={category}
+                        >
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Delegate to"
+                    value={delegateToValue}
+                    onChange={(e) => setDelegateToValue(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Reason"
+                    value={reasonValue}
+                    onChange={(e) => setReasonValue(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                  <div>
+                    <button
+                      type="button"
+                      onClick={handleApplyReclassification}
+                      className="px-3 py-1.5 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors cursor-pointer"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {showRefineForm && onRefineDraft && triage.draftResponse && (
+                <div className="mt-3 grid gap-3">
+                  <input
+                    type="text"
+                    placeholder="e.g. Make it more formal or add a clearer response time"
+                    value={refineInstruction}
+                    onChange={(e) => setRefineInstruction(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                  <div>
+                    <button
+                      type="button"
+                      onClick={handleRefineDraft}
+                      className="px-3 py-1.5 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors cursor-pointer"
+                    >
+                      Refine
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

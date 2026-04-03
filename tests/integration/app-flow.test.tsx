@@ -1,7 +1,11 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { App } from "../../src/App.tsx";
-import { makeMessage, makeTriageResponse } from "../helpers/fixtures.ts";
+import {
+  makeMessage,
+  makeTriagedMessage,
+  makeTriageResponse,
+} from "../helpers/fixtures.ts";
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -686,6 +690,211 @@ describe("App flow", () => {
         expect(screen.getByText("HR can handle")).toBeInTheDocument();
         // Bob's message card should exist with its anchor
         expect(document.getElementById("message-2")).not.toBeNull();
+      });
+    });
+  });
+
+  describe("reclassify and refine draft flows", () => {
+    async function setupTriageCard() {
+      render(<App />);
+      const messages = [
+        makeMessage({
+          id: 1,
+          from: "Alice Johnson",
+          subject: "Q2 Revenue Report",
+        }),
+      ];
+      mockUploadSuccess(messages);
+      const fileInput = document.querySelector(
+        'input[type="file"]'
+      ) as HTMLInputElement;
+      await act(async () => {
+        fireEvent.change(fileInput, {
+          target: {
+            files: [
+              new File([JSON.stringify(messages)], "m.json", {
+                type: "application/json",
+              }),
+            ],
+          },
+        });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("1 messages loaded")).toBeInTheDocument();
+      });
+
+      mockTriageSuccess(
+        makeTriageResponse({
+          triagedMessages: [
+            makeTriagedMessage({
+              messageId: 1,
+              category: "decide",
+              reason: "CEO should answer this directly.",
+              draftResponse: "I'll review it this morning.",
+              urgency: "high",
+            }),
+          ],
+        })
+      );
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("Run Triage"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Top Priority")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText("Triage"));
+      fireEvent.click(screen.getByText("Alice Johnson"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Please review the attached Q2 revenue report/)
+        ).toBeInTheDocument();
+      });
+    }
+
+    test("reclassifying a message posts to /api/reclassify and updates the rendered card", async () => {
+      await setupTriageCard();
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve(
+            makeTriagedMessage({
+              messageId: 1,
+              category: "delegate",
+              delegateTo: "Chief of Staff",
+              reason: "This can be coordinated by the chief of staff.",
+              draftResponse:
+                "Please coordinate this review and send me the summary before noon.",
+              urgency: "medium",
+            })
+          ),
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /Reclassify/i }));
+      fireEvent.change(screen.getByRole("combobox", { name: /category/i }), {
+        target: { value: "delegate" },
+      });
+      fireEvent.change(screen.getByPlaceholderText(/delegate to/i), {
+        target: { value: "Chief of Staff" },
+      });
+      fireEvent.change(screen.getByPlaceholderText(/reason/i), {
+        target: { value: "This can be coordinated by the chief of staff." },
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /Apply/i }));
+      });
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenLastCalledWith(
+          "/api/reclassify",
+          expect.objectContaining({
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          })
+        );
+        expect(
+          screen.getByText(/Draft Handoff to Chief of Staff/)
+        ).toBeInTheDocument();
+        expect(
+          screen.getByText(
+            "Please coordinate this review and send me the summary before noon."
+          )
+        ).toBeInTheDocument();
+      });
+    });
+
+    test("reclassify API errors surface in the app error banner and keep the previous draft", async () => {
+      await setupTriageCard();
+
+      mockApiError("Failed to reclassify message");
+
+      fireEvent.click(screen.getByRole("button", { name: /Reclassify/i }));
+      fireEvent.change(screen.getByRole("combobox", { name: /category/i }), {
+        target: { value: "delegate" },
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /Apply/i }));
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Failed to reclassify message")
+        ).toBeInTheDocument();
+        expect(
+          screen.getByText("I'll review it this morning.")
+        ).toBeInTheDocument();
+      });
+    });
+
+    test("refining a draft posts to /api/refine-draft and replaces the rendered draft text", async () => {
+      await setupTriageCard();
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            draftResponse:
+              "Thank you for sending this. I will review the report this morning and reply before lunch.",
+          }),
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /Refine Draft/i }));
+      fireEvent.change(
+        screen.getByPlaceholderText(/e\.g\.|make it|more formal|instruction/i),
+        {
+          target: { value: "Make it more formal and commit to a response time." },
+        }
+      );
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /^Refine$/i }));
+      });
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenLastCalledWith(
+          "/api/refine-draft",
+          expect.objectContaining({
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          })
+        );
+        expect(
+          screen.getByText(
+            "Thank you for sending this. I will review the report this morning and reply before lunch."
+          )
+        ).toBeInTheDocument();
+      });
+    });
+
+    test("refine draft API errors surface in the app error banner and keep the previous draft", async () => {
+      await setupTriageCard();
+
+      mockApiError("Failed to refine draft");
+
+      fireEvent.click(screen.getByRole("button", { name: /Refine Draft/i }));
+      fireEvent.change(
+        screen.getByPlaceholderText(/e\.g\.|make it|more formal|instruction/i),
+        {
+          target: { value: "Make it warmer." },
+        }
+      );
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /^Refine$/i }));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Failed to refine draft")).toBeInTheDocument();
+        expect(
+          screen.getByText("I'll review it this morning.")
+        ).toBeInTheDocument();
       });
     });
   });
