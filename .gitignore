@@ -6,6 +6,8 @@ dist-server/
 
 # Test output
 coverage/
+playwright-report/
+test-results/
 
 # Environment files
 .env

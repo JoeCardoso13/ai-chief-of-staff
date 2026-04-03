@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { createApp } from "./app.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, "..");
+const ROOT = path.resolve(__dirname, "..", "..");
 
 const anthropic = new Anthropic();
 const app = createApp(anthropic);

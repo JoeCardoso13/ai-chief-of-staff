@@ -76,6 +76,26 @@ The app accepts any JSON array of messages. Each message should have:
 
 Click **Upload JSON** in the header to load new data, then **Run Triage**.
 
+## Testing
+
+```bash
+# Unit + integration tests
+npm run test:run
+
+# Coverage report
+npm run test:coverage
+
+# Browser E2E with mocked API responses
+npx playwright install chromium
+# On Linux, you may also need:
+# npx playwright install-deps chromium
+npm run test:e2e
+
+# Optional live browser smoke test against Anthropic
+# Put ANTHROPIC_API_KEY=sk-ant-... in .env or .env.local, or export it
+npm run test:e2e:live
+```
+
 ## Design Decisions
 
 - **Single LLM call**: All 20 messages are sent in one batch so the AI can spot cross-message patterns, conflicts, and dependencies (e.g., message #5 says Horizon is on track, message #6 contradicts it, message #17 resolves it)
