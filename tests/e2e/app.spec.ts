@@ -150,7 +150,9 @@ test.describe("mocked browser e2e", () => {
 
     // Navigate to flags tab
     await page.getByRole("button", { name: /Flags \(1\)/ }).click();
-    await expect(page.getByText("Production build failure")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Production build failure" })
+    ).toBeVisible();
 
     // Click the related message link (Build Bot, message id 2)
     const relatedLink = page.getByRole("button", { name: /Build Bot/ });
